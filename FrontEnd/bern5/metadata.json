@@ -1,0 +1,5 @@
+{
+  "name": "BERSn-Pro: Integrated Building Energy Analysis Platform",
+  "description": "A comprehensive web-based platform for building energy efficiency calculation (BERSn), featuring interactive 3D modeling, real-time KPI engines, and cost-benefit optimization analysis for sustainable architectural design.",
+  "requestFramePermissions": []
+}

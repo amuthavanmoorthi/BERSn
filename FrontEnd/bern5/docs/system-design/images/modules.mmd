@@ -1,0 +1,14 @@
+flowchart TB
+  M1["M1 Auth & IAM"] --> M2["M2 Project Portal"]
+  M2 --> M3["M3 Baseline Config"]
+  M2 --> M4["M4 Geometry & Metrics"]
+  M3 --> M5["M5 BERSn Calculation Core"]
+  M4 --> M5
+  M5 --> M6["M6 Optimization & Scenario"]
+  M5 --> M7["M7 Reporting"]
+  M2 --> M9["M9 Audit & Observability"]
+  M8["M8 Reference & Governance"] --> M5
+  M8 --> M6
+
+  classDef mod fill:#fff7ed,stroke:#c2410c,stroke-width:1.2px;
+  class M1,M2,M3,M4,M5,M6,M7,M8,M9 mod;

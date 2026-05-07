@@ -1,0 +1,19 @@
+flowchart LR
+  U["Users (Browser)"] -->|"HTTPS/JWT"| FE["Frontend SPA\nReact + Vite"]
+  FE -->|"REST API"| BE["Backend API\nNode.js (BFF)"]
+  BE -->|"Invoke"| PY["Calculation Engine\nPython"]
+  BE -->|"SQL"| DB["PostgreSQL"]
+  PY -->|"Result JSON"| BE
+  BE -->|"Read/Write"| DB
+
+  subgraph REF["Reference Data"]
+    TBL["BERSn Tables\nregions/use/hvac/... "]
+  end
+
+  PY --> TBL
+  BE --> TBL
+
+  classDef core fill:#e8f0ff,stroke:#2f5bea,stroke-width:1.5px;
+  classDef data fill:#ecfdf3,stroke:#0f9d58,stroke-width:1.5px;
+  class FE,BE,PY core;
+  class DB,TBL data;

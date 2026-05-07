@@ -1,0 +1,109 @@
+# BERSn Backend — Staging Deployment
+#
+# Usage on staging server:
+#   export BERSN_ADMIN_PASSWORD="<strong-password>"
+#   export BERSN_DB_PASSWORD="<strong-db-password>"
+#   docker compose -f docker-compose.staging.yml up -d --build
+#
+# Exposes: port 4000 (backend API)  — put Nginx/Caddy in front for HTTPS
+
+name: bersn-backend-staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bersn_staging_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       bersn_auth
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${BERSN_DB_PASSWORD:-changeme_in_production}
+    volumes:
+      - bersn_staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bersn_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: bersn_staging_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - bersn_staging_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bersn_staging_api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT:             4000
+      NODE_ENV:         production
+      API_TRUST_PROXY:  1
+
+      # Database
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_NAME:     bersn_auth
+      DB_USER:     postgres
+      DB_PASSWORD: ${BERSN_DB_PASSWORD:-changeme_in_production}
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # Auth
+      AUTH_JWT_ISSUER:    bersn-backend
+      AUTH_JWT_AUDIENCE:  bersn-frontend
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_SAME_SITE: lax
+      AUTH_PASSWORD_MIN_LENGTH: 12
+      AUTH_ACCESS_TTL_SECONDS:  900
+      AUTH_REFRESH_TTL_SECONDS: 604800
+      AUTH_LOGIN_RATE_LIMIT_MAX: 10
+      AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS: 900
+      AUTH_LOCKOUT_MAX_FAILURES: 5
+      AUTH_LOCKOUT_WINDOW_SECONDS: 900
+      AUTH_LOCKOUT_DURATION_SECONDS: 900
+
+      # WebAuthn
+      AUTH_WEBAUTHN_RP_ID:   ${BERSN_DOMAIN:-localhost}
+      AUTH_WEBAUTHN_ORIGINS: ${BERSN_WEBAUTHN_ORIGINS:-https://bersn.staging}
+
+      # Bootstrap admin (created on first start)
+      AUTH_BOOTSTRAP_ADMIN_USERNAME: admin
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${BERSN_ADMIN_PASSWORD:-changeme_in_production}
+      AUTH_BOOTSTRAP_ADMIN_ROLE:     SYS_ADMIN
+      AUTH_BOOTSTRAP_ADMIN_FORCE:    "false"
+
+      # Email (configure for real delivery)
+      AUTH_EMAIL_FROM:     ${AUTH_EMAIL_FROM:-BERSn <no-reply@bersn.staging>}
+      AUTH_EMAIL_LOG_ONLY: ${AUTH_EMAIL_LOG_ONLY:-false}
+      AUTH_SMTP_HOST:      ${AUTH_SMTP_HOST:-}
+      AUTH_SMTP_PORT:      ${AUTH_SMTP_PORT:-587}
+      AUTH_SMTP_SECURE:    ${AUTH_SMTP_SECURE:-false}
+      AUTH_SMTP_USER:      ${AUTH_SMTP_USER:-}
+      AUTH_SMTP_PASSWORD:  ${AUTH_SMTP_PASSWORD:-}
+
+      # Allowed CORS origins (comma-separated)
+      API_ALLOWED_ORIGINS: ${BERSN_ALLOWED_ORIGINS:-https://bersn.staging}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  bersn_staging_pgdata:
+  bersn_staging_redis:

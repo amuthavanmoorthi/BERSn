@@ -1,0 +1,56 @@
+{
+  "name": "bersn-auth-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "tsx src/server.ts",
+    "start:prod": "node dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:migrate": "tsx src/scripts/runDbMigrations.ts",
+    "db:migrate:prod": "node dist/scripts/runDbMigrations.js",
+    "db:migrate:status": "tsx src/scripts/runDbMigrations.ts status",
+    "db:seed-demo": "tsx src/scripts/seedDemoProjectData.ts",
+    "db:seed-demo:prod": "node dist/scripts/seedDemoProjectData.js",
+    "auth:provision-user": "tsx src/scripts/provisionAuthUser.ts",
+    "auth:provision-user:prod": "node dist/scripts/provisionAuthUser.js",
+    "auth:bootstrap-admin": "tsx src/scripts/bootstrapAdmin.ts",
+    "auth:bootstrap-admin:prod": "node dist/scripts/bootstrapAdmin.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.3.0",
+    "argon2": "^0.44.0",
+    "express": "^4.21.2",
+    "nodemailer": "^8.0.5",
+    "pg": "^8.16.3",
+    "redis": "^5.11.0",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.3.6"
+  },
+  "vitest": {
+    "environment": "node",
+    "globals": true,
+    "include": ["src/**/*.test.ts"],
+    "exclude": ["dist/**", "node_modules/**"],
+    "testTimeout": 15000,
+    "sequence": { "concurrent": false }
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.2",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.5",
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.5"
+  }
+}
