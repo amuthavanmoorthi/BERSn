@@ -147,6 +147,7 @@ const App: React.FC = () => {
   const [configLookupError, setConfigLookupError] = useState('');
   const [geometryPreview, setGeometryPreview] = useState<GeometryPreview | null>(null);
   const [geometryPreviewError, setGeometryPreviewError] = useState('');
+  const [heatmapMode, setHeatmapMode] = useState(false);
   const [geometryPreviewLoading, setGeometryPreviewLoading] = useState(false);
 
   const [baseline, setBaseline] = useState<ProjectBaseline>({
@@ -1149,7 +1150,40 @@ const App: React.FC = () => {
                     canUndo={canUndoFloors}
                     canRedo={canRedoFloors}
                     topViewRequestSeq={topViewRequestSeq}
+                    heatmapMode={heatmapMode}
                   />
+
+                  {/* Heatmap toggle (top-right of 3D viewer) */}
+                  <button
+                    type="button"
+                    onClick={() => setHeatmapMode((m) => !m)}
+                    className={`absolute top-3 right-3 z-20 px-3 py-2 rounded-lg shadow-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      heatmapMode
+                        ? 'bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500 text-white'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                    title={heatmapMode ? (lang === 'zh' ? '關閉熱圖' : 'Hide heatmap') : (lang === 'zh' ? '開啟熱圖' : 'Show heatmap')}
+                  >
+                    🔥 {heatmapMode ? (lang === 'zh' ? '熱圖開啟' : 'Heatmap ON') : (lang === 'zh' ? '熱圖關閉' : 'Heatmap OFF')}
+                  </button>
+
+                  {/* Heatmap legend (bottom-right of 3D viewer) */}
+                  {heatmapMode && (
+                    <div className="absolute bottom-3 right-3 z-20 bg-white/95 backdrop-blur p-2 rounded-lg shadow-lg border border-slate-200">
+                      <div className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">
+                        {lang === 'zh' ? '熱量損失' : 'Heat Loss'}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-bold text-emerald-600">
+                          {lang === 'zh' ? '低' : 'Low'}
+                        </span>
+                        <div className="w-32 h-3 rounded" style={{ background: 'linear-gradient(to right, #10b981, #f59e0b, #dc2626)' }} />
+                        <span className="text-[9px] font-bold text-red-600">
+                          {lang === 'zh' ? '高' : 'High'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Floor Manager Panel - Floating overlay inside 3D viewer */}
                   {activeTab === 'config' && (

@@ -162,12 +162,42 @@ interface ThreeDViewerProps {
   canRedo?: boolean;
   /** Increment to request entering top-view edit for selectedFloorId (from FloorManagerPanel 📐) */
   topViewRequestSeq?: number;
+  /** When true, walls are coloured by heat-loss intensity instead of normal facade textures.
+   *  Heatmap value per shape is computed from U-value × WWR × wall area; values are normalized
+   *  across the building so the worst face is red and the best is green. */
+  heatmapMode?: boolean;
+  /** Optional explicit heat-loss values (W/K) per shape, keyed by shape id. If not provided,
+   *  the viewer estimates from each shape's wwr and assumes a baseline U=2.0 W/m²K. */
+  heatmapDataByShape?: Record<string, number>;
+}
+
+/**
+ * Heatmap colour ramp: green (cool / low heat-loss) → yellow → red (hot / high heat-loss).
+ * Input `t` is normalized intensity 0..1.
+ */
+function heatColorAt(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  // 0.0 = green #10b981, 0.5 = yellow #f59e0b, 1.0 = red #dc2626
+  let r: number, g: number, b: number;
+  if (x < 0.5) {
+    const s = x / 0.5;
+    r = Math.round(0x10 + (0xf5 - 0x10) * s);
+    g = Math.round(0xb9 + (0x9e - 0xb9) * s);
+    b = Math.round(0x81 + (0x0b - 0x81) * s);
+  } else {
+    const s = (x - 0.5) / 0.5;
+    r = Math.round(0xf5 + (0xdc - 0xf5) * s);
+    g = Math.round(0x9e + (0x26 - 0x9e) * s);
+    b = Math.round(0x0b + (0x26 - 0x0b) * s);
+  }
+  return (r << 16) | (g << 8) | b;
 }
 
 const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   objects, floors, selectedFloorId, selectedShapeId, editingFloorId, lang, showCompass = true,
   onSelectFloor, onSelectShape, onAddFloor, onMoveShape, onEnterEditMode, onExitEditMode, onFloorsChange,
   onUndo, onRedo, canUndo, canRedo, topViewRequestSeq,
+  heatmapMode = false, heatmapDataByShape,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -2058,6 +2088,33 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
         // Shapes
         console.log(`[ThreeDViewer] Floor "${floor.name}" (${floor.id}): ${floor.shapes.length} shapes`, floor.shapes.map(s => ({ id: s.id, type: s.type, hasPoints: !!(s.params.points?.length) })));
+        // Pre-compute heatmap normalization across all shapes on all floors.
+        // Higher heat loss → hotter color. Estimate: WWR × wall_area × baseline_U.
+        const heatLossByShape: Record<string, number> = {};
+        if (heatmapMode) {
+          (floors ?? []).forEach(f => {
+            f.shapes.forEach(s => {
+              if (heatmapDataByShape?.[s.id] !== undefined) {
+                heatLossByShape[s.id] = heatmapDataByShape[s.id];
+                return;
+              }
+              const wwrEst = s.params.wwr ?? 0.35;
+              const w = s.params.width ?? 20;
+              const l = s.params.length ?? 20;
+              const wallPerim = 2 * (w + l);
+              const wallArea = wallPerim * f.floorHeight;
+              const opaqueU = 2.0;   // baseline Uaw (W/m²K)
+              const glassU  = 3.03;  // baseline Ug
+              const heatLoss = wallArea * (1 - wwrEst) * opaqueU + wallArea * wwrEst * glassU;
+              heatLossByShape[s.id] = heatLoss;
+            });
+          });
+        }
+        const heatVals = Object.values(heatLossByShape);
+        const heatMin = heatVals.length ? Math.min(...heatVals) : 0;
+        const heatMax = heatVals.length ? Math.max(...heatVals) : 1;
+        const heatRange = Math.max(1, heatMax - heatMin);
+
         floor.shapes.forEach(shape => {
           const wwr = shape.params.wwr ?? 0.35;
           const shadingType = shape.params.shadingType || 'None';
@@ -2065,13 +2122,29 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           const isSelectedShape = shape.id === selectedShapeId;
 
           // Brush color (if set on shape) overrides the default selection-based facade tint.
+          // Heatmap mode overrides everything with a ramp colour computed from heat loss.
           const brushColorHex = shape.params.color;
-          const facadeColor = brushColorHex
-            ? new THREE.Color(brushColorHex).getHex()
-            : (isSelectedFloor ? (isSelectedShape ? 0xbfdbfe : 0xdbeafe) : 0xffffff);
-          const facadeMat = new THREE.MeshPhongMaterial({ map: texture, color: facadeColor });
+          let facadeColor: number;
+          if (heatmapMode) {
+            const v = heatLossByShape[shape.id] ?? heatMin;
+            const norm = (v - heatMin) / heatRange;
+            facadeColor = heatColorAt(norm);
+          } else if (brushColorHex) {
+            facadeColor = new THREE.Color(brushColorHex).getHex();
+          } else {
+            facadeColor = isSelectedFloor ? (isSelectedShape ? 0xbfdbfe : 0xdbeafe) : 0xffffff;
+          }
+
+          const facadeMat = new THREE.MeshPhongMaterial({
+            map: heatmapMode ? null : texture,
+            color: facadeColor,
+            ...(heatmapMode ? { emissive: facadeColor, emissiveIntensity: 0.25 } : {}),
+          });
           const wallOnlyTex = createWallOnlyTexture();
-          const wallOnlyMat = new THREE.MeshPhongMaterial({ map: wallOnlyTex, color: facadeColor });
+          const wallOnlyMat = new THREE.MeshPhongMaterial({
+            map: heatmapMode ? null : wallOnlyTex,
+            color: facadeColor,
+          });
           const roofMat = new THREE.MeshPhongMaterial({ color: isTopFloor ? 0x94a3b8 : 0xadb5bd, flatShading: true });
           const floorMat = new THREE.MeshPhongMaterial({ color: isSelectedFloor ? 0xdbeafe : 0xe2e8f0, flatShading: true });
           const noWindowFaces = new Set<string>(shape.params.noWindowFaces || []);
@@ -2181,7 +2254,8 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
         objectsGroupRef.current?.add(shapeGroup);
       });
     }
-  }, [objects, floors, selectedFloorId, selectedShapeId, editingFloorId, sceneReady]);
+  }, [objects, floors, selectedFloorId, selectedShapeId, editingFloorId, sceneReady,
+      heatmapMode, heatmapDataByShape]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-slate-50">
