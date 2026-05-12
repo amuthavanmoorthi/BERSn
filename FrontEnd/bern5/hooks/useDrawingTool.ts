@@ -37,6 +37,8 @@ interface Args {
   onSelectShape: (id: string | null) => void;
   onSelectFloor?: (id: string | null) => void;
   onToast: (msg: string) => void;
+  /** Language for dialog labels — drawing tool extraFields adapt. */
+  lang?: 'zh' | 'en';
   /** When set, move-tool snaps shape position to nearest grid intersection (after anchor-snap). */
   gridSnap?: { gridSize: number };
 }
@@ -613,73 +615,78 @@ export function useDrawingTool(args: Args) {
 
   const extraFields = useMemo<ExtraField[]>(() => {
     if (state.kind !== 'awaiting-extrude') return [];
+    const t = (args.lang ?? 'en') === 'zh';
     // Common facade fields appended to every shape's create-time dialog so the
     // user can fully define the shape's WWR + glass + shading at create time.
     const commonFacade: ExtraField[] = [
-      { kind: 'number', key: 'wwr', label: '開窗率 (0-1)', defaultValue: state.baseParams.wwr ?? 0.35, min: 0, max: 1, step: 0.05 },
-      { kind: 'select', key: 'glassType', label: '玻璃類型', defaultValue: (state.baseParams.glassType as string) ?? 'Double', options: [
-        { value: 'Single', label: '單層' },
-        { value: 'Double', label: '雙層' },
+      { kind: 'number', key: 'wwr', label: t ? '開窗率 (0-1)' : 'WWR (0-1)', defaultValue: state.baseParams.wwr ?? 0.35, min: 0, max: 1, step: 0.05 },
+      { kind: 'select', key: 'glassType', label: t ? '玻璃類型' : 'Glass Type', defaultValue: (state.baseParams.glassType as string) ?? 'Double', options: [
+        { value: 'Single', label: t ? '單層' : 'Single' },
+        { value: 'Double', label: t ? '雙層' : 'Double' },
         { value: 'LowE', label: 'Low-E' },
       ]},
-      { kind: 'select', key: 'shadingType', label: '遮陽類型', defaultValue: (state.baseParams.shadingType as string) ?? 'None', options: [
-        { value: 'None', label: '無' },
-        { value: 'Horizontal', label: '水平' },
-        { value: 'Vertical', label: '垂直' },
-        { value: 'Eggcrate', label: '格柵' },
-        { value: 'Louver', label: '百葉' },
+      { kind: 'select', key: 'shadingType', label: t ? '遮陽類型' : 'Shading Type', defaultValue: (state.baseParams.shadingType as string) ?? 'None', options: [
+        { value: 'None', label: t ? '無' : 'None' },
+        { value: 'Horizontal', label: t ? '水平' : 'Horizontal' },
+        { value: 'Vertical', label: t ? '垂直' : 'Vertical' },
+        { value: 'Eggcrate', label: t ? '格柵' : 'Eggcrate' },
+        { value: 'Louver', label: t ? '百葉' : 'Louver' },
       ]},
     ];
     let shapeSpecific: ExtraField[] = [];
     if (state.tool === 'cylinder') {
       shapeSpecific = [
-        { kind: 'number', key: 'radius', label: '半徑 (m)', defaultValue: state.baseParams.radius ?? 15, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'radius', label: t ? '半徑 (m)' : 'Radius (m)', defaultValue: state.baseParams.radius ?? 15, min: 0.5, step: 0.5 },
       ];
     } else if (state.tool === 'polygon') {
       shapeSpecific = [
-        { kind: 'number', key: 'circumradius', label: '外接圓半徑 (m)', defaultValue: state.baseParams.circumradius ?? 20, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'sides', label: '邊數 (3-12)', defaultValue: state.baseParams.sides ?? 6, min: 3, max: 12, step: 1 },
-        { kind: 'number', key: 'startAngle', label: '起始角度 (°)', defaultValue: state.baseParams.startAngle ?? 0, min: 0, max: 360, step: 1 },
+        { kind: 'number', key: 'circumradius', label: t ? '外接圓半徑 (m)' : 'Circumradius (m)', defaultValue: state.baseParams.circumradius ?? 20, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'sides', label: t ? '邊數 (3-12)' : 'Sides (3-12)', defaultValue: state.baseParams.sides ?? 6, min: 3, max: 12, step: 1 },
+        { kind: 'number', key: 'startAngle', label: t ? '起始角度 (°)' : 'Start Angle (°)', defaultValue: state.baseParams.startAngle ?? 0, min: 0, max: 360, step: 1 },
       ];
     } else if (state.tool === 'lShape') {
       shapeSpecific = [
-        { kind: 'number', key: 'l2', label: '次體 L2', defaultValue: state.baseParams.l2 ?? 20, min: 1, step: 1 },
-        { kind: 'number', key: 'w2', label: '次體 W2', defaultValue: state.baseParams.w2 ?? 15, min: 1, step: 1 },
-        { kind: 'select', key: 'lDirection', label: '轉折方向', defaultValue: 'TopLeft', options: [
-          { value: 'TopLeft', label: '左上' }, { value: 'TopRight', label: '右上' },
-          { value: 'BottomLeft', label: '左下' }, { value: 'BottomRight', label: '右下' },
+        { kind: 'number', key: 'l2', label: t ? '次體 L2' : 'Secondary L2', defaultValue: state.baseParams.l2 ?? 20, min: 1, step: 1 },
+        { kind: 'number', key: 'w2', label: t ? '次體 W2' : 'Secondary W2', defaultValue: state.baseParams.w2 ?? 15, min: 1, step: 1 },
+        { kind: 'select', key: 'lDirection', label: t ? '轉折方向' : 'Corner Direction', defaultValue: 'TopLeft', options: [
+          { value: 'TopLeft',     label: t ? '左上' : 'Top Left' },
+          { value: 'TopRight',    label: t ? '右上' : 'Top Right' },
+          { value: 'BottomLeft',  label: t ? '左下' : 'Bottom Left' },
+          { value: 'BottomRight', label: t ? '右下' : 'Bottom Right' },
         ]},
       ];
     } else if (state.tool === 'tShape') {
       shapeSpecific = [
-        { kind: 'number', key: 'l2', label: '翼部 L2', defaultValue: state.baseParams.l2 ?? 20, min: 1, step: 1 },
-        { kind: 'number', key: 'w2', label: '翼部 W2', defaultValue: state.baseParams.w2 ?? 15, min: 1, step: 1 },
-        { kind: 'select', key: 'wingPosition', label: '翼部位置', defaultValue: 'top', options: [
-          { value: 'top', label: '上' }, { value: 'bottom', label: '下' },
-          { value: 'left', label: '左' }, { value: 'right', label: '右' },
+        { kind: 'number', key: 'l2', label: t ? '翼部 L2' : 'Wing L2', defaultValue: state.baseParams.l2 ?? 20, min: 1, step: 1 },
+        { kind: 'number', key: 'w2', label: t ? '翼部 W2' : 'Wing W2', defaultValue: state.baseParams.w2 ?? 15, min: 1, step: 1 },
+        { kind: 'select', key: 'wingPosition', label: t ? '翼部位置' : 'Wing Position', defaultValue: 'top', options: [
+          { value: 'top',    label: t ? '上' : 'Top' },
+          { value: 'bottom', label: t ? '下' : 'Bottom' },
+          { value: 'left',   label: t ? '左' : 'Left' },
+          { value: 'right',  label: t ? '右' : 'Right' },
         ]},
       ];
     } else if (state.tool === 'fan') {
       shapeSpecific = [
-        { kind: 'number', key: 'outerRadius', label: '外半徑 (m)', defaultValue: state.baseParams.outerRadius ?? 30, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'innerRadius', label: '內半徑 (0=實心扇形)', defaultValue: state.baseParams.innerRadius ?? 0, min: 0, step: 0.5 },
-        { kind: 'number', key: 'fanAngle', label: '扇形角度 (°)', defaultValue: state.baseParams.fanAngle ?? 90, min: 1, max: 360, step: 1 },
+        { kind: 'number', key: 'outerRadius', label: t ? '外半徑 (m)' : 'Outer Radius (m)', defaultValue: state.baseParams.outerRadius ?? 30, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'innerRadius', label: t ? '內半徑 (0=實心扇形)' : 'Inner Radius (0=solid)', defaultValue: state.baseParams.innerRadius ?? 0, min: 0, step: 0.5 },
+        { kind: 'number', key: 'fanAngle', label: t ? '扇形角度 (°)' : 'Fan Angle (°)', defaultValue: state.baseParams.fanAngle ?? 90, min: 1, max: 360, step: 1 },
       ];
     } else if (state.tool === 'arc') {
       shapeSpecific = [
-        { kind: 'number', key: 'arcRadius', label: '內側半徑 (m)', defaultValue: state.baseParams.arcRadius ?? 30, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'depth', label: '厚度/深度 (m)', defaultValue: state.baseParams.depth ?? 10, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'arcAngle', label: '弧角度 (°)', defaultValue: state.baseParams.arcAngle ?? 90, min: 1, max: 360, step: 1 },
+        { kind: 'number', key: 'arcRadius', label: t ? '內側半徑 (m)' : 'Inner Radius (m)', defaultValue: state.baseParams.arcRadius ?? 30, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'depth', label: t ? '厚度/深度 (m)' : 'Depth (m)', defaultValue: state.baseParams.depth ?? 10, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'arcAngle', label: t ? '弧角度 (°)' : 'Arc Angle (°)', defaultValue: state.baseParams.arcAngle ?? 90, min: 1, max: 360, step: 1 },
       ];
     } else if (state.tool === 'ellipse') {
       shapeSpecific = [
-        { kind: 'number', key: 'majorRadius', label: '長軸半徑 (m)', defaultValue: state.baseParams.majorRadius ?? 25, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'minorRadius', label: '短軸半徑 (m)', defaultValue: state.baseParams.minorRadius ?? 15, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'majorRadius', label: t ? '長軸半徑 (m)' : 'Major Radius (m)', defaultValue: state.baseParams.majorRadius ?? 25, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'minorRadius', label: t ? '短軸半徑 (m)' : 'Minor Radius (m)', defaultValue: state.baseParams.minorRadius ?? 15, min: 0.5, step: 0.5 },
       ];
     } else if (state.tool === 'box') {
       shapeSpecific = [
-        { kind: 'number', key: 'width', label: '寬度 W (m)', defaultValue: state.baseParams.width ?? 30, min: 0.5, step: 0.5 },
-        { kind: 'number', key: 'length', label: '長度 L (m)', defaultValue: state.baseParams.length ?? 30, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'width',  label: t ? '寬度 W (m)' : 'Width W (m)',  defaultValue: state.baseParams.width  ?? 30, min: 0.5, step: 0.5 },
+        { kind: 'number', key: 'length', label: t ? '長度 L (m)' : 'Length L (m)', defaultValue: state.baseParams.length ?? 30, min: 0.5, step: 0.5 },
       ];
     }
     return [...shapeSpecific, ...commonFacade];

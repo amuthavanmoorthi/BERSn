@@ -1,5 +1,6 @@
 import React from 'react';
 import { Project } from '../types/project';
+import { describeWorkflowState, isWorkflowState } from '../services/rbacPolicy';
 
 interface ProjectCardProps {
     project: Project;
@@ -12,21 +13,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEnter, lang }) => 
     const eeiValue = project.eei ?? 0;
 
     const getStatusBadge = (status: Project['status']) => {
-        const styles = {
-            DRAFT: 'bg-slate-100 text-slate-600',
-            IN_REVIEW: 'bg-blue-100 text-blue-600',
-            APPROVED: 'bg-emerald-100 text-emerald-600',
-            ARCHIVED: 'bg-amber-100 text-amber-600',
-        };
-        const labels = {
-            DRAFT: t ? '草稿' : 'Draft',
-            IN_REVIEW: t ? '審查中' : 'In Review',
-            APPROVED: t ? '已核准' : 'Approved',
-            ARCHIVED: t ? '已封存' : 'Archived',
-        };
+        const descriptor = describeWorkflowState(isWorkflowState(status) ? status : 'DRAFT');
+        const label = t ? descriptor.zh : descriptor.en;
         return (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${styles[status]}`}>
-                {labels[status]}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${descriptor.badgeClass}`}>
+                {descriptor.icon} {label}
             </span>
         );
     };

@@ -6,8 +6,10 @@ interface UserCardProps {
     lang: 'zh' | 'en';
     onEdit?: (userId: string) => void;
     onToggleStatus?: (userId: string) => void;
+    onDelete?: (userId: string) => void;
     isAdmin?: boolean;
     statusBusy?: boolean;
+    deleteBusy?: boolean;
 }
 
 // Avatar color based on name hash
@@ -34,8 +36,10 @@ const UserCard: React.FC<UserCardProps> = ({
     lang,
     onEdit,
     onToggleStatus,
+    onDelete,
     isAdmin = false,
     statusBusy = false,
+    deleteBusy = false,
 }) => {
     const t = lang === 'zh';
     const roleInfo = ROLE_INFO[user.role];
@@ -96,27 +100,40 @@ const UserCard: React.FC<UserCardProps> = ({
 
             {/* Admin Actions */}
             {isAdmin && (
-                <div className="px-4 pb-4 pt-2 flex gap-2 border-t border-slate-100">
-                    <button
-                        onClick={() => onEdit?.(user.id)}
-                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg transition-colors"
-                    >
-                        {t ? '編輯' : 'Edit'}
-                    </button>
-                    <button
-                        onClick={() => onToggleStatus?.(user.id)}
-                        disabled={statusBusy}
-                        className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${user.status === 'inactive'
-                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600'
-                                : 'bg-red-50 hover:bg-red-100 text-red-600'
-                            }`}
-                    >
-                        {statusBusy
-                            ? (t ? '更新中...' : 'Updating...')
-                            : user.status === 'inactive'
-                                ? (t ? '啟用' : 'Enable')
-                                : (t ? '停用' : 'Disable')}
-                    </button>
+                <div className="px-4 pb-4 pt-2 flex flex-col gap-2 border-t border-slate-100">
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onEdit?.(user.id)}
+                            className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg transition-colors"
+                        >
+                            {t ? '編輯' : 'Edit'}
+                        </button>
+                        <button
+                            onClick={() => onToggleStatus?.(user.id)}
+                            disabled={statusBusy}
+                            className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${user.status === 'inactive'
+                                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-600'
+                                }`}
+                        >
+                            {statusBusy
+                                ? (t ? '更新中...' : 'Updating...')
+                                : user.status === 'inactive'
+                                    ? (t ? '啟用' : 'Enable')
+                                    : (t ? '停用' : 'Disable')}
+                        </button>
+                    </div>
+                    {onDelete && (
+                        <button
+                            onClick={() => onDelete(user.id)}
+                            disabled={deleteBusy}
+                            className="w-full py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-red-50 hover:bg-red-100 text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {deleteBusy
+                                ? (t ? '刪除中...' : 'Deleting...')
+                                : (t ? '永久刪除 (釋放 email)' : 'Permanently Delete (release email)')}
+                        </button>
+                    )}
                 </div>
             )}
         </div>

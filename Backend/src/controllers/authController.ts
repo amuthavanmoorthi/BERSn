@@ -15,6 +15,7 @@ import {
   verifyPasskeyRegistration,
 } from '../services/authService.js';
 import type { CookieOptions } from '../types/auth.js';
+import { asRole, permissionsForRole } from '../services/rbacPolicy.js';
 import {
   clearCookie,
   parseCookies,
@@ -142,6 +143,8 @@ export async function login(req: Request, res: Response): Promise<Response> {
     return res.status(200).json({
       ok: true,
       user: authState.user,
+      role: asRole(authState.user.role),
+      permissions: permissionsForRole(authState.user.role),
       must_change_password: authState.user.is_first_login,
     });
   } catch (error) {
@@ -162,6 +165,8 @@ export async function refresh(req: Request, res: Response): Promise<Response> {
     return res.status(200).json({
       ok: true,
       user: authState.user,
+      role: asRole(authState.user.role),
+      permissions: permissionsForRole(authState.user.role),
       must_change_password: authState.user.is_first_login,
     });
   } catch (error) {
@@ -197,6 +202,8 @@ export async function getMe(req: Request, res: Response): Promise<Response> {
     return res.status(200).json({
       ok: true,
       user: req.auth.user,
+      role: asRole(req.auth.user.role),
+      permissions: permissionsForRole(req.auth.user.role),
     });
   }
 
@@ -207,6 +214,8 @@ export async function getMe(req: Request, res: Response): Promise<Response> {
     return res.status(200).json({
       ok: true,
       user: authState.user,
+      role: asRole(authState.user.role),
+      permissions: permissionsForRole(authState.user.role),
     });
   } catch (error) {
     const authError = error as Partial<AuthServiceError>;
@@ -399,6 +408,8 @@ export async function verifyPasskeyLogin(req: Request, res: Response): Promise<R
     return res.status(200).json({
       ok: true,
       user: authState.user,
+      role: asRole(authState.user.role),
+      permissions: permissionsForRole(authState.user.role),
       must_change_password: authState.user.is_first_login,
     });
   } catch (error) {

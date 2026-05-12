@@ -76,6 +76,7 @@ export const translations = {
     box: '長方體稜柱',
     cylinder: '圓柱形結構',
     statusOnline: '計算引擎在線',
+    statusOffline: '計算引擎離線',
     exportPDF: '匯出正式報告',
     genDate: '產生日期',
     // Optimization UI
@@ -232,6 +233,7 @@ export const translations = {
     box: 'Rectangular Box',
     cylinder: 'Cylinder',
     statusOnline: 'Engine Online',
+    statusOffline: 'Engine Offline',
     exportPDF: 'Export Formal Report',
     genDate: 'Generation Date',
     // Optimization UI

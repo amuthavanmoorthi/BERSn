@@ -1,8 +1,29 @@
 // Project Management Types
 import type { Floor, GeometryObject } from '../types';
 
-export type ProjectStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'ARCHIVED';
+export type ProjectStatus =
+    | 'DRAFT'
+    | 'SUBMITTED'
+    | 'UNDER_REVIEW'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'REVISION_REQUESTED'
+    | 'COMPLETED'
+    | 'ARCHIVED';
 export type OrganizationType = 'GOVERNMENT' | 'VENDOR' | 'AGENCY';
+
+export interface ProjectWorkflowEvent {
+    id: string;
+    projectId: string;
+    fromStatus: ProjectStatus | null;
+    toStatus: ProjectStatus;
+    actorUserId: string;
+    actorRole: string;
+    actorUsername: string | null;
+    reason: string | null;
+    metadata: unknown;
+    at: string;
+}
 
 export interface BuildingTypeOption {
     code: string;

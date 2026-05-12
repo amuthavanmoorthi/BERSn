@@ -35,9 +35,17 @@ const ExtrudeHeightDialog: React.FC<Props> = ({
 
   const handleConfirm = () => onConfirm(height, extras);
 
+  // Format a number for display: keep up to 2 decimals, strip trailing zeros so
+  // raw floating-point results like 13.152946437965904 become 13.15 instead.
+  const formatNum = (n: number) => {
+    if (!Number.isFinite(n)) return '';
+    const rounded = Math.round(n * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
+  };
+
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-white/20 rounded-2xl p-6 shadow-2xl w-80 space-y-4 animate-in zoom-in-95 duration-200">
+      <div className="bg-slate-900 border border-white/20 rounded-2xl p-6 shadow-2xl w-96 max-h-[90vh] overflow-y-auto space-y-4 animate-in zoom-in-95 duration-200">
         <h3 className="text-lg font-black text-white">{t ? '設定擠出高度' : 'Set Extrude Height'}</h3>
         {description && <p className="text-[13px] text-slate-400">{description}</p>}
 
@@ -45,7 +53,7 @@ const ExtrudeHeightDialog: React.FC<Props> = ({
           <label className="text-[12px] font-black text-slate-300 uppercase">{t ? '擠出高度 (m)' : 'Height (m)'}</label>
           <input
             type="number"
-            value={height}
+            value={formatNum(height)}
             step={0.1}
             min={0.5}
             onChange={(e) => setHeight(parseFloat(e.target.value) || 3.5)}
@@ -66,7 +74,7 @@ const ExtrudeHeightDialog: React.FC<Props> = ({
             {f.kind === 'number' ? (
               <input
                 type="number"
-                value={extras[f.key] as number}
+                value={formatNum(extras[f.key] as number)}
                 step={f.step ?? 0.5}
                 min={f.min}
                 max={f.max}

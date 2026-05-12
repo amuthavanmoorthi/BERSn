@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Floor, FloorShape, GeometryType, LShapeDirection, TShapeWingPosition, PolylinePoint } from '../types';
+import { BuildingIcon, RulerIcon } from './icons/CommonIcons';
 
 interface FloorManagerPanelProps {
   floors: Floor[];
@@ -315,7 +316,7 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
           value={value}
           min={min}
           max={max}
-          step={step || 1}
+          step={step ?? 0.1}
           onChange={(e) => update({ [key]: parseFloat(e.target.value) || 0 })}
           className={inputClass}
         />
@@ -535,8 +536,9 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
       {/* Header */}
       <div className="p-3 border-b border-white/10 flex items-center justify-between flex-shrink-0">
         <div>
-          <h3 className="text-sm font-black tracking-tight">
-            {t ? '🏢 樓層建模' : '🏢 Floor Modeling'}
+          <h3 className="text-sm font-black tracking-tight flex items-center gap-2">
+            <BuildingIcon className="w-4 h-4 text-blue-400" />
+            {t ? '樓層建模 Floor Modeling' : 'Floor Modeling'}
           </h3>
           <p className="text-[13px] text-slate-400 font-bold">
             {t ? `${floors.length} 層 · ${floors.reduce((s, f) => s + f.shapes.length, 0)} 形狀` : `${floors.length} floors · ${floors.reduce((s, f) => s + f.shapes.length, 0)} shapes`}
@@ -585,7 +587,8 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
                   value={floor.name}
                   onChange={(e) => updateFloor(floor.id, { name: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-transparent border-none text-[13px] font-black text-white w-10 shrink-0 outline-none focus:bg-white/10 rounded px-1 transition-all"
+                  title={floor.name}
+                  className="bg-transparent border-none text-[13px] font-black text-white flex-1 min-w-0 outline-none focus:bg-white/10 rounded px-1 transition-all"
                 />
 
                 {/* Floor height */}
@@ -627,10 +630,10 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
                   {onEnterTopView && (
                     <button
                       onClick={() => onEnterTopView(floor.id)}
-                      className={`${btnSmClass} bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40`}
-                      title={t ? '俯視編輯該樓層' : 'Top View Edit'}
+                      className={`${btnSmClass} bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40 inline-flex items-center justify-center`}
+                      title={t ? '俯視編輯該樓層 Top View Edit' : 'Top View Edit'}
                     >
-                      📐
+                      <RulerIcon className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>

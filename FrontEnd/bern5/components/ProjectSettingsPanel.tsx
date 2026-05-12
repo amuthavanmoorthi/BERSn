@@ -52,6 +52,9 @@ const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
     const useCategoryOptions = lookups?.useCategories?.length ? lookups.useCategories : USE_CATEGORIES;
     const regionOptions = lookups?.climateRegions?.length ? lookups.climateRegions : CLIMATE_REGIONS;
     const selectedOfficialUse = lookups?.useCategories?.find(cat => cat.id === selectedUseCategory);
+    const supportedRegionIds = selectedOfficialUse?.urByRegion
+        ? new Set(Object.keys(selectedOfficialUse.urByRegion))
+        : null;
     const euiData = selectedOfficialUse?.fullYearAc || fallbackEuiData;
     const regionData = regionOptions.find(r => r.id === selectedRegion);
     const officialAreaBand = lookups?.areaBands?.find((band) => {
@@ -64,7 +67,8 @@ const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
         : undefined;
     const esValue = typeof officialEsValue === 'number' ? officialEsValue : fallbackEsValue;
     const urValue = selectedOfficialUse?.urByRegion?.[selectedRegion]
-        ?? ('ur' in (regionData || {}) ? Number((regionData as { ur?: number }).ur) : 1.0);
+        ?? (!selectedOfficialUse && 'ur' in (regionData || {}) ? Number((regionData as { ur?: number }).ur) : null);
+    const selectedRegionSupported = !supportedRegionIds || supportedRegionIds.has(selectedRegion);
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [newZone, setNewZone] = useState({ name: '', reason: 'outdoor' as ExemptReason, area: 0 });
@@ -136,21 +140,28 @@ const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
                     onChange={(e) => onRegionChange(e.target.value)}
                     className={inputClass}
                 >
-                    {regionOptions.map(region => (
-                        <option key={region.id} value={region.id}>
-                            {getDisplayName(region, lang)}
+                    {regionOptions.map(region => {
+                        const isSupported = !supportedRegionIds || supportedRegionIds.has(region.id);
+                        return (
+                        <option key={region.id} value={region.id} disabled={!isSupported}>
+                            {getDisplayName(region, lang)}{isSupported ? '' : ` (${t ? '無官方UR' : 'no official UR'})`}
                         </option>
-                    ))}
+                    )})}
                 </select>
                 <p className={sourceClass}>
                     {lookupSourceLabel}: {regionData && 'source' in regionData && regionData.source ? regionData.source : (t ? '區域係數 UR 查表' : 'Region coefficient UR lookup')}
                 </p>
+                {!selectedRegionSupported && (
+                    <p className="text-[7px] font-bold text-amber-600">
+                        {t ? '此建築用途在官方表格中沒有此區UR，系統會使用可用的官方區域。' : 'This building use has no official UR for this zone; the system uses an available official zone.'}
+                    </p>
+                )}
                 <div className="flex justify-between items-center p-1.5 bg-emerald-50 rounded-lg">
                     <span className="text-[8px] font-black text-emerald-600">
                         UR ({t ? '區域係數' : 'Region Coef.'})
                     </span>
                     <span className="text-[10px] font-black text-emerald-700">
-                        {urValue}
+                        {urValue ?? '—'}
                     </span>
                 </div>
             </section>

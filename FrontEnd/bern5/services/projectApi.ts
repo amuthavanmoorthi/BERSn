@@ -9,6 +9,8 @@ import type {
     Project,
     ProjectFormData,
     ProjectWorkspaceSettings,
+    ProjectStatus,
+    ProjectWorkflowEvent,
 } from '../types/project';
 import type { Floor, GeometryObject } from '../types';
 import { API_BASE_URL, buildFingerprint, buildJsonHeaders } from './authApi';
@@ -21,7 +23,9 @@ interface ProjectApiResponse {
     project?: BackendProject;
     projects?: BackendProject[];
     preview?: GeometryPreview;
+    history?: ProjectWorkflowEvent[];
     message?: string;
+    error_code?: string;
     details?: {
         field_errors?: Record<string, string[]>;
     };
@@ -42,6 +46,7 @@ export interface WorkspaceSettingsPayload {
     selectedShading: string;
     selectedUseCategory: string;
     selectedWall: string;
+    thumbnail?: string | null;
 }
 
 interface BackendProject {
@@ -65,6 +70,15 @@ interface BackendProject {
         grade: string | null;
     };
     latestCalculationAt: string | null;
+    /**
+     * Server-computed live preview of EEI/grade based on the project's
+     * current workspace settings + geometry. Null when geometry is missing
+     * or the preview fails — the dashboard renders "—" in that case.
+     */
+    livePreview?: {
+        eei: number | null;
+        grade: string | null;
+    } | null;
     location: string | null;
     organization: string;
     organizationId: string | null;
@@ -83,6 +97,7 @@ interface BackendProject {
     totalFloorArea: number;
     updatedAt: string;
     workspaceSavedAt: string | null;
+    workspaceThumbnail?: string | null;
 }
 
 export class ProjectApiError extends Error {
@@ -108,13 +123,15 @@ function mapProject(project: BackendProject): Project {
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
         status: project.status,
+        thumbnail: project.workspaceThumbnail ?? undefined,
         category: project.buildingType.labelZh,
         buildingType: project.buildingType.labelEn,
         buildingTypeCode: project.buildingType.code,
         buildingTypeEuiBaseline: project.buildingType.euiBaseline,
         totalArea: project.totalFloorArea,
-        grade: project.latestCalculation.grade || undefined,
-        eei: project.latestCalculation.eeiResult || undefined,
+        // Prefer the freshly-computed live preview; fall back to the last persisted calculation.
+        grade: project.livePreview?.grade ?? project.latestCalculation.grade ?? undefined,
+        eei: project.livePreview?.eei ?? project.latestCalculation.eeiResult ?? undefined,
         assignedTo: project.assignedTo,
         createdBy: project.createdBy,
         workspace: {
@@ -169,6 +186,22 @@ export async function getOrganizations(): Promise<OrganizationOption[]> {
         return body.organizations;
     }
     return assertSuccess(body, 'Failed to load organizations.');
+}
+
+/** Admin: create or reactivate an organization by name + type. */
+export async function createOrganization(input: { name: string; type: 'GOVERNMENT' | 'VENDOR' | 'AGENCY' }): Promise<OrganizationOption> {
+    const response = await fetch(`${API_BASE_URL}/api/organizations`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: buildJsonHeaders(),
+        body: JSON.stringify(input),
+    });
+    const body = await parseResponse(response);
+    const organization = (body as ProjectApiResponse & { organization?: OrganizationOption }).organization;
+    if (response.ok && body.ok && organization) {
+        return organization;
+    }
+    return assertSuccess(body, 'Failed to create organization.');
 }
 
 export async function getProjects(): Promise<Project[]> {
@@ -261,6 +294,7 @@ export async function updateWorkspaceSettings(
                 selected_shading: settings.selectedShading,
                 selected_use_category: settings.selectedUseCategory,
                 selected_wall: settings.selectedWall,
+                thumbnail: settings.thumbnail ?? null,
             }),
         },
     );
@@ -309,4 +343,273 @@ export async function previewProjectGeometry(
         return body.preview;
     }
     return assertSuccess(body, 'Failed to calculate geometry preview.');
+}
+
+export async function submitProject(projectId: string, reason?: string): Promise<Project> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/submit`,
+        {
+            method: 'POST',
+            credentials: 'include',
+            headers: buildJsonHeaders(),
+            body: JSON.stringify(reason ? { reason } : {}),
+        },
+    );
+    const body = await parseResponse(response);
+    if (response.ok && body.ok && body.project) {
+        return mapProject(body.project);
+    }
+    return assertSuccess(body, 'Failed to submit project.');
+}
+
+/**
+ * Change the workflow status of a project (agency / admin only).
+ * Backend enforces the allowed (from → to) transitions per role.
+ */
+export async function updateProjectStatus(
+    projectId: string,
+    status: ProjectStatus,
+    reason?: string,
+): Promise<Project> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/status`,
+        {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: buildJsonHeaders(),
+            body: JSON.stringify(reason ? { status, reason } : { status }),
+        },
+    );
+    const body = await parseResponse(response);
+    if (response.ok && body.ok && body.project) {
+        return mapProject(body.project);
+    }
+    return assertSuccess(body, 'Failed to update project status.');
+}
+
+export async function getProjectWorkflowHistory(projectId: string): Promise<ProjectWorkflowEvent[]> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/workflow-history`,
+        {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'X-Device-Fingerprint': buildFingerprint(),
+            },
+        },
+    );
+    const body = await parseResponse(response);
+    if (response.ok && body.ok && Array.isArray(body.history)) {
+        return body.history;
+    }
+    return assertSuccess(body, 'Failed to load workflow history.');
+}
+
+// ── Optimization (measures + scenarios) ────────────────────────────────────────
+
+export interface BackendMeasure {
+    id: string;
+    nameZh: string;
+    nameEn: string;
+    category: 'ENVELOPE' | 'HVAC' | 'LIGHTING' | 'ELEVATOR' | 'DHW' | 'CONTROL';
+    descriptionZh: string;
+    descriptionEn: string;
+    eligibility: Record<string, unknown>;
+    patches: Array<{ section: string; field: string; value: unknown }>;
+    costModel: { type: string; unitCost: number };
+    sortOrder: number;
+}
+
+export interface BackendScenarioResult {
+    scenarioId: string;
+    simulatedEEI: number;
+    simulatedScore: number;
+    simulatedGrade: string;
+    totalCostTwd: number;
+    cpValue: number;
+    baselineEEI: number | null;
+    computedAt: string;
+}
+
+export interface BackendScenario {
+    id: string;
+    projectId: string;
+    name: string;
+    selectedMeasureIds: string[];
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    latestResult: BackendScenarioResult | null;
+}
+
+export interface BackendMeasureImpact {
+    measureId: string;
+    deltaEEI: number;
+    deltaScore: number;
+    cost: number;
+    cpValue: number;
+    isEligible: boolean;
+    ineligibleReason?: string;
+    simulatedEEI?: number;
+    simulatedGrade?: string;
+}
+
+export interface BackendMeasureSimulationBundle {
+    baselineEEI: number;
+    baselineScore: number;
+    baselineGrade: string;
+    metrics: {
+        totalWallArea: number;
+        totalWindowArea: number;
+        roofArea: number;
+        overallWwr: number;
+        estimatedFloorArea: number;
+    };
+    impacts: BackendMeasureImpact[];
+}
+
+interface OptimizationApiResponse {
+    ok: boolean;
+    measures?: BackendMeasure[];
+    scenarios?: BackendScenario[];
+    scenario?: BackendScenario;
+    result?: BackendScenarioResult;
+    baselineEEI?: number;
+    baselineScore?: number;
+    baselineGrade?: string;
+    metrics?: BackendMeasureSimulationBundle['metrics'];
+    impacts?: BackendMeasureImpact[];
+    message?: string;
+    details?: { field_errors?: Record<string, string[]> };
+}
+
+async function parseOptimization(response: Response): Promise<OptimizationApiResponse> {
+    return response.json().catch(() => ({ ok: false }));
+}
+
+function assertOptimizationSuccess(body: OptimizationApiResponse, fallbackMessage: string): never {
+    throw new ProjectApiError(body.message || fallbackMessage, body.details?.field_errors);
+}
+
+export async function getMeasureLibrary(): Promise<BackendMeasure[]> {
+    const response = await fetch(`${API_BASE_URL}/api/reference/measures`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            'X-Device-Fingerprint': buildFingerprint(),
+        },
+    });
+    const body = await parseOptimization(response);
+    if (response.ok && body.ok && Array.isArray(body.measures)) {
+        return body.measures;
+    }
+    return assertOptimizationSuccess(body, 'Failed to load measure library.');
+}
+
+export async function listProjectScenarios(projectId: string): Promise<BackendScenario[]> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/scenarios`,
+        {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'X-Device-Fingerprint': buildFingerprint(),
+            },
+        },
+    );
+    const body = await parseOptimization(response);
+    if (response.ok && body.ok && Array.isArray(body.scenarios)) {
+        return body.scenarios;
+    }
+    return assertOptimizationSuccess(body, 'Failed to load scenarios.');
+}
+
+export async function createProjectScenario(
+    projectId: string,
+    input: { name: string; selectedMeasureIds: string[] },
+): Promise<BackendScenario> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/scenarios`,
+        {
+            method: 'POST',
+            credentials: 'include',
+            headers: buildJsonHeaders(),
+            body: JSON.stringify({
+                name: input.name,
+                selected_measure_ids: input.selectedMeasureIds,
+            }),
+        },
+    );
+    const body = await parseOptimization(response);
+    if (response.ok && body.ok && body.scenario) {
+        return body.scenario;
+    }
+    return assertOptimizationSuccess(body, 'Failed to create scenario.');
+}
+
+export async function deleteProjectScenario(projectId: string, scenarioId: string): Promise<void> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/scenarios/${encodeURIComponent(scenarioId)}`,
+        {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: {
+                'X-Device-Fingerprint': buildFingerprint(),
+            },
+        },
+    );
+    if (response.status === 204 || response.ok) {
+        return;
+    }
+    const body = await parseOptimization(response);
+    return assertOptimizationSuccess(body, 'Failed to delete scenario.');
+}
+
+export async function simulateProjectScenario(
+    projectId: string,
+    scenarioId: string,
+): Promise<BackendScenarioResult> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/scenarios/${encodeURIComponent(scenarioId)}/simulate`,
+        {
+            method: 'POST',
+            credentials: 'include',
+            headers: buildJsonHeaders(),
+            body: JSON.stringify({}),
+        },
+    );
+    const body = await parseOptimization(response);
+    if (response.ok && body.ok && body.result) {
+        return body.result;
+    }
+    return assertOptimizationSuccess(body, 'Failed to simulate scenario.');
+}
+
+export async function simulateAllMeasures(projectId: string): Promise<BackendMeasureSimulationBundle> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/measures/simulate-all`,
+        {
+            method: 'POST',
+            credentials: 'include',
+            headers: buildJsonHeaders(),
+            body: JSON.stringify({}),
+        },
+    );
+    const body = await parseOptimization(response);
+    if (
+        response.ok
+        && body.ok
+        && typeof body.baselineEEI === 'number'
+        && body.metrics
+        && Array.isArray(body.impacts)
+    ) {
+        return {
+            baselineEEI: body.baselineEEI,
+            baselineScore: body.baselineScore ?? 0,
+            baselineGrade: body.baselineGrade ?? '-',
+            metrics: body.metrics,
+            impacts: body.impacts,
+        };
+    }
+    return assertOptimizationSuccess(body, 'Failed to compute measure impacts.');
 }

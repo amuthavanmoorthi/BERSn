@@ -11,6 +11,7 @@ import {
   insertProject,
   insertProjectAuditLog,
   insertProjectCalculation,
+  insertProjectWorkflowEvent,
   listActiveBuildingTypes,
   listActiveOrganizations,
   listAllProjects,
@@ -19,6 +20,7 @@ import {
   listProjectMembers,
   listProjectsAssignedToUser,
   listProjectsByOrganization,
+  listProjectWorkflowHistory,
   revokeProjectMember,
   softDeleteProject,
   updateProjectAssignee,
@@ -45,11 +47,27 @@ import type {
   ProjectRow,
   ProjectStatus,
   ProjectUserContext,
+  ProjectWorkflowHistoryRow,
+  ProjectWorkflowHistorySummary,
 } from '../types/projects.js';
 import { AuthServiceError } from './authService.js';
 import { buildGeometryPreviewLookupContext } from './configLookupService.js';
 import { runGeometryPreviewInPython, type GeometryPreviewResult } from './pythonCalculationRunner.js';
-import { isAdminRole, normalizeUserRole } from './userPolicy.js';
+import {
+  PERMISSIONS,
+  WORKFLOW_STATES,
+  asRole,
+  auditActionForTransition,
+  canEditProjectContent,
+  canTransition,
+  hasPermission,
+  isAdmin,
+  isAgency,
+  isVendor,
+  isWorkflowState,
+} from './rbacPolicy.js';
+import type { ProjectAuditAction } from '../types/projects.js';
+import { normalizeUserRole } from './userPolicy.js';
 
 function getHeaderValue(req: Request, headerName: string): string | undefined {
   const rawValue = req.headers[headerName];
@@ -88,11 +106,34 @@ function round(value: number, digits: number): number {
 }
 
 function isAgencyRole(role: string | undefined): boolean {
-  return normalizeUserRole(role, '') === 'AGENCY_USER';
+  return isAgency(role);
 }
 
 function isVendorRole(role: string | undefined): boolean {
-  return normalizeUserRole(role, '') === 'VENDOR_USER';
+  return isVendor(role);
+}
+
+function isAdminRole(role: string | undefined): boolean {
+  return isAdmin(role);
+}
+
+function isProjectOwner(user: ProjectUserContext, project: ProjectRow): boolean {
+  return project.created_by === user.id || project.assigned_to === user.id;
+}
+
+function toWorkflowSummary(row: ProjectWorkflowHistoryRow): ProjectWorkflowHistorySummary {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    fromStatus: row.from_status,
+    toStatus: row.to_status,
+    actorUserId: row.actor_user_id,
+    actorRole: row.actor_role,
+    actorUsername: row.actor_username ?? null,
+    reason: row.reason,
+    metadata: row.metadata,
+    at: toDate(row.created_at).toISOString(),
+  };
 }
 
 function toBuildingTypeSummary(row: BuildingTypeRow): BuildingTypeSummary {
@@ -239,13 +280,20 @@ async function requireProjectUser(
 }
 
 function assertCanViewProject(user: ProjectUserContext, project: ProjectRow, requestId: string): void {
-  if (isAdminRole(user.role)) {
+  if (hasPermission(user.role, PERMISSIONS.PROJECT_VIEW_ALL)) {
     return;
   }
-  if (isAgencyRole(user.role) && project.organization_id && project.organization_id === user.organization_id) {
+  if (
+    hasPermission(user.role, PERMISSIONS.PROJECT_VIEW_ASSIGNED)
+    && project.organization_id
+    && project.organization_id === user.organization_id
+  ) {
     return;
   }
-  if (isVendorRole(user.role) && project.assigned_to === user.id) {
+  if (
+    hasPermission(user.role, PERMISSIONS.PROJECT_VIEW_OWN)
+    && (project.created_by === user.id || project.assigned_to === user.id)
+  ) {
     return;
   }
   throw new AuthServiceError(
@@ -254,6 +302,19 @@ function assertCanViewProject(user: ProjectUserContext, project: ProjectRow, req
     'You do not have permission to access this project.',
     { request_id: requestId },
   );
+}
+
+function assertCanEditProject(user: ProjectUserContext, project: ProjectRow, requestId: string): void {
+  const status = (isWorkflowState(project.status) ? project.status : WORKFLOW_STATES.DRAFT) as ProjectStatus;
+  const isOwner = isProjectOwner(user, project);
+  if (!canEditProjectContent(user.role, status, isOwner)) {
+    throw new AuthServiceError(
+      403,
+      'BERSN_PROJECT_EDIT_FORBIDDEN',
+      'You do not have permission to edit this project in its current state.',
+      { request_id: requestId, status },
+    );
+  }
 }
 
 function assertCanCalculateProject(user: ProjectUserContext, project: ProjectRow, requestId: string): void {
@@ -382,6 +443,16 @@ export async function createProjectForUser(
 ) {
   const requestId = getRequestId(req);
   const user = await requireProjectUser(authState, requestId);
+
+  if (!hasPermission(user.role, PERMISSIONS.PROJECT_CREATE)) {
+    throw new AuthServiceError(
+      403,
+      'BERSN_AUTH_FORBIDDEN',
+      'Your role does not allow creating projects.',
+      { request_id: requestId },
+    );
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -465,6 +536,19 @@ export async function createProjectForUser(
       },
     });
 
+    await insertProjectWorkflowEvent(client, {
+      project_id: project.id,
+      from_status: null,
+      to_status: WORKFLOW_STATES.DRAFT,
+      actor_user_id: user.id,
+      actor_role: asRole(user.role),
+      reason: null,
+      metadata: {
+        ip_address: getIpAddress(req),
+        request_id: requestId,
+      },
+    });
+
     await client.query('COMMIT');
     return toProjectSummary(project);
   } catch (error) {
@@ -545,14 +629,7 @@ export async function updateProjectInfoForUser(
       );
     }
     assertCanViewProject(user, currentProject, requestId);
-    if (currentProject.status !== 'DRAFT') {
-      throw new AuthServiceError(
-        409,
-        'BERSN_PROJECT_STATUS_LOCKED',
-        'Project details can only be modified while the project is in draft status.',
-        { request_id: requestId, status: currentProject.status },
-      );
-    }
+    assertCanEditProject(user, currentProject, requestId);
 
     const buildingType = await findActiveBuildingTypeByCode(client, input.building_type_code);
     if (!buildingType) {
@@ -605,11 +682,23 @@ export async function updateProjectInfoForUser(
   }
 }
 
+/**
+ * Drive a single project through one workflow state transition.
+ *
+ * The function enforces (in this order):
+ *   1. Authentication / view-permission on the project.
+ *   2. Workflow state machine — `canTransition(role, from, to)`.
+ *   3. Project content edit permissions (vendors can only act on
+ *      their own projects, etc.).
+ *   4. Writes BOTH the audit log row AND a workflow-history row in
+ *      the same transaction so the timeline never drifts from reality.
+ */
 export async function updateProjectStatusForUser(
   req: Request,
   authState: AuthenticatedRequestState,
   projectId: string,
   status: ProjectStatus,
+  reason?: string | null,
 ) {
   const requestId = getRequestId(req);
   const user = await requireProjectUser(authState, requestId);
@@ -626,11 +715,39 @@ export async function updateProjectStatusForUser(
       );
     }
     assertCanViewProject(user, currentProject, requestId);
-    if (status === 'APPROVED' && !isAdminRole(user.role)) {
+
+    const fromStatus = (isWorkflowState(currentProject.status)
+      ? currentProject.status
+      : WORKFLOW_STATES.DRAFT) as ProjectStatus;
+
+    const decision = canTransition(user.role, fromStatus, status);
+    if (!decision.allowed) {
       throw new AuthServiceError(
         403,
-        'BERSN_PROJECT_APPROVE_FORBIDDEN',
-        'Only system administrators can approve projects.',
+        'BERSN_WORKFLOW_TRANSITION_FORBIDDEN',
+        decision.reason === 'noop_transition'
+          ? 'Project is already in that status.'
+          : 'Your role cannot perform this workflow transition.',
+        {
+          request_id: requestId,
+          from_status: fromStatus,
+          to_status: status,
+          role: asRole(user.role),
+          reason_code: decision.reason || 'transition_not_defined',
+        },
+      );
+    }
+
+    // Extra safety net for vendors — never reachable through allowed
+    // transitions, but enforcing ownership here keeps the policy local.
+    if (
+      isVendorRole(user.role)
+      && !(isProjectOwner(user, currentProject))
+    ) {
+      throw new AuthServiceError(
+        403,
+        'BERSN_PROJECT_EDIT_FORBIDDEN',
+        'Vendors may only act on their own projects.',
         { request_id: requestId },
       );
     }
@@ -645,12 +762,31 @@ export async function updateProjectStatusForUser(
       );
     }
 
+    const auditAction = auditActionForTransition(status) as ProjectAuditAction;
+    const normalizedReason = (reason || '').trim() || null;
+
     await insertProjectAuditLog(client, {
       project_id: project.id,
       user_id: user.id,
-      action: status === 'APPROVED' ? 'APPROVED' : status === 'IN_REVIEW' ? 'SUBMITTED' : 'UPDATED',
+      action: auditAction,
       ip_address: getIpAddress(req),
-      changed_fields: buildChangedFields(currentProject.status, project.status),
+      changed_fields: {
+        ...buildChangedFields(currentProject.status, project.status),
+        ...(normalizedReason ? { reason: normalizedReason } : {}),
+      },
+    });
+
+    await insertProjectWorkflowEvent(client, {
+      project_id: project.id,
+      from_status: fromStatus,
+      to_status: status,
+      actor_user_id: user.id,
+      actor_role: asRole(user.role),
+      reason: normalizedReason,
+      metadata: {
+        ip_address: getIpAddress(req),
+        request_id: requestId,
+      },
     });
 
     await client.query('COMMIT');
@@ -666,6 +802,110 @@ export async function updateProjectStatusForUser(
       'Internal server error.',
       { request_id: requestId },
     );
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Submit a draft (or revision-requested) project for review.
+ *
+ * Wraps {@link updateProjectStatusForUser} but additionally checks the
+ * PROJECT_SUBMIT permission and verifies that the project actually has
+ * the geometry & required fields needed to enter review.
+ */
+export async function submitProjectForUser(
+  req: Request,
+  authState: AuthenticatedRequestState,
+  projectId: string,
+  reason?: string | null,
+) {
+  const requestId = getRequestId(req);
+  const user = await requireProjectUser(authState, requestId);
+
+  if (!hasPermission(user.role, PERMISSIONS.PROJECT_SUBMIT)) {
+    throw new AuthServiceError(
+      403,
+      'BERSN_AUTH_FORBIDDEN',
+      'Your role does not allow project submission.',
+      { request_id: requestId },
+    );
+  }
+
+  const client = await pool.connect();
+  try {
+    const project = await findProjectById(client, projectId);
+    if (!project) {
+      throw new AuthServiceError(
+        404,
+        'BERSN_PROJECT_NOT_FOUND',
+        'Project not found.',
+        { request_id: requestId },
+      );
+    }
+    assertCanViewProject(user, project, requestId);
+
+    // Vendors can only submit their own projects.
+    if (isVendorRole(user.role) && !isProjectOwner(user, project)) {
+      throw new AuthServiceError(
+        403,
+        'BERSN_PROJECT_EDIT_FORBIDDEN',
+        'You may only submit projects you own.',
+        { request_id: requestId },
+      );
+    }
+
+    // Don't allow submission of empty drafts — basic completeness gate.
+    const totalArea = Number(project.total_floor_area || 0);
+    const hasFloors = Array.isArray(project.floors) && (project.floors as unknown[]).length > 0;
+    const hasGeometry = Array.isArray(project.geometry_objects) && (project.geometry_objects as unknown[]).length > 0;
+    if (totalArea <= 0 || (!hasFloors && !hasGeometry)) {
+      throw new AuthServiceError(
+        409,
+        'BERSN_PROJECT_NOT_READY_FOR_SUBMISSION',
+        'Project must have a total floor area and at least one floor or geometry object before submission.',
+        { request_id: requestId },
+      );
+    }
+  } finally {
+    client.release();
+  }
+
+  return updateProjectStatusForUser(
+    req,
+    authState,
+    projectId,
+    WORKFLOW_STATES.SUBMITTED,
+    reason,
+  );
+}
+
+/**
+ * Return the chronological workflow timeline for a single project.
+ *
+ * Access control mirrors {@link assertCanViewProject}.
+ */
+export async function listProjectWorkflowHistoryForUser(
+  req: Request,
+  authState: AuthenticatedRequestState,
+  projectId: string,
+): Promise<ProjectWorkflowHistorySummary[]> {
+  const requestId = getRequestId(req);
+  const user = await requireProjectUser(authState, requestId);
+  const client = await pool.connect();
+  try {
+    const project = await findProjectById(client, projectId);
+    if (!project) {
+      throw new AuthServiceError(
+        404,
+        'BERSN_PROJECT_NOT_FOUND',
+        'Project not found.',
+        { request_id: requestId },
+      );
+    }
+    assertCanViewProject(user, project, requestId);
+    const rows = await listProjectWorkflowHistory(client, projectId);
+    return rows.map(toWorkflowSummary);
   } finally {
     client.release();
   }
@@ -692,6 +932,23 @@ export async function softDeleteProjectForUser(
     }
     assertCanViewProject(user, currentProject, requestId);
 
+    // Only admins can delete any project. Vendors may delete their
+    // own DRAFT/REVISION_REQUESTED projects only.
+    const isOwner = isProjectOwner(user, currentProject);
+    const status = (isWorkflowState(currentProject.status) ? currentProject.status : WORKFLOW_STATES.DRAFT) as ProjectStatus;
+    const isVendorDeletingOwnEditableProject = isVendorRole(user.role)
+      && isOwner
+      && (status === WORKFLOW_STATES.DRAFT || status === WORKFLOW_STATES.REVISION_REQUESTED);
+
+    if (!hasPermission(user.role, PERMISSIONS.PROJECT_DELETE) && !isVendorDeletingOwnEditableProject) {
+      throw new AuthServiceError(
+        403,
+        'BERSN_PROJECT_DELETE_FORBIDDEN',
+        'Your role does not allow deleting this project in its current state.',
+        { request_id: requestId, status },
+      );
+    }
+
     const project = await softDeleteProject(client, projectId);
     if (!project) {
       throw new AuthServiceError(
@@ -712,6 +969,20 @@ export async function softDeleteProjectForUser(
         status: { from: currentProject.status, to: project.status },
       },
     });
+
+    await insertProjectWorkflowEvent(client, {
+      project_id: project.id,
+      from_status: status,
+      to_status: WORKFLOW_STATES.ARCHIVED,
+      actor_user_id: user.id,
+      actor_role: asRole(user.role),
+      reason: 'Project archived (soft delete)',
+      metadata: {
+        ip_address: getIpAddress(req),
+        request_id: requestId,
+      },
+    }).catch(() => {});
+
     await client.query('COMMIT');
     return toProjectSummary(project);
   } catch (error) {
@@ -868,14 +1139,7 @@ export async function updateProjectWorkspaceSettingsForUser(
       );
     }
     assertCanViewProject(user, currentProject, requestId);
-    if (currentProject.status !== 'DRAFT') {
-      throw new AuthServiceError(
-        409,
-        'BERSN_PROJECT_STATUS_LOCKED',
-        'Workspace settings can only be modified while the project is in draft status.',
-        { request_id: requestId, status: currentProject.status },
-      );
-    }
+    assertCanEditProject(user, currentProject, requestId);
 
     const project = await updateProjectWorkspaceSettings(client, projectId, {
       selected_region: input.selected_region,
@@ -949,14 +1213,9 @@ export async function previewProjectGeometryForUser(
       );
     }
     assertCanViewProject(user, project, requestId);
-    if (project.status !== 'DRAFT') {
-      throw new AuthServiceError(
-        409,
-        'BERSN_PROJECT_STATUS_LOCKED',
-        'Geometry preview is available only while the project is in draft status.',
-        { request_id: requestId, status: project.status },
-      );
-    }
+    // Geometry preview is read-only — allow as long as the user has view rights.
+    // Editing-restricted states (SUBMITTED, UNDER_REVIEW, APPROVED, COMPLETED)
+    // continue to block project-info and workspace mutations via assertCanEditProject.
 
     return await runGeometryPreviewInPython(
       {
@@ -1145,8 +1404,8 @@ export async function assignProjectToUser(
 ) {
   const requestId = getRequestId(req);
   const user = await requireProjectUser(authState, requestId);
-  if (!isAdminRole(user.role)) {
-    throw new AuthServiceError(403, 'BERSN_AUTH_FORBIDDEN', 'Only admins can assign projects.', { request_id: requestId });
+  if (!hasPermission(user.role, PERMISSIONS.PROJECT_ASSIGN)) {
+    throw new AuthServiceError(403, 'BERSN_AUTH_FORBIDDEN', 'Your role does not allow assigning projects.', { request_id: requestId });
   }
   const client = await pool.connect();
   try {
@@ -1162,7 +1421,7 @@ export async function assignProjectToUser(
     await insertProjectAuditLog(client, {
       project_id: projectId,
       user_id: user.id,
-      action: 'UPDATED',
+      action: 'ASSIGNED',
       ip_address: getIpAddress(req),
       changed_fields: { assigned_to: { from: project.assigned_to, to: targetUserId } },
     });

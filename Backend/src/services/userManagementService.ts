@@ -11,6 +11,7 @@ import {
   insertAuditLog,
   listManagedUsers,
   revokeActiveSessionsByUserId,
+  softDeleteAndAnonymizeUser,
   updateManagedUserStatus,
 } from '../models/authModel.js';
 import { findOrCreateOrganizationByName } from '../models/projectModel.js';
@@ -478,10 +479,105 @@ export async function updateUserAccountStatusAsAdmin(
     if (error instanceof AuthServiceError) {
       throw error;
     }
-    console.error('[users] updateUserAccountStatusAsAdmin failed', {
+    console.error('[users] updateUserAccountStatusAsAdmin failed (status_change)', {
       request_id: context.requestId,
       userId,
       isActive,
+      actor_user_id: authState.user.id,
+      error,
+    });
+    throw new AuthServiceError(
+      500,
+      'BERSN_API_INTERNAL_ERROR',
+      'Internal server error.',
+      { request_id: context.requestId },
+    );
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteManagedUserAsAdmin(
+  req: Request,
+  authState: AuthenticatedRequestState,
+  userId: string,
+): Promise<{ id: string; deletedAt: string }> {
+  const context = buildRequestContext(req);
+  assertAdmin(authState, context);
+
+  if (!userId) {
+    throw new AuthServiceError(
+      400,
+      'BERSN_API_VALIDATION_ERROR',
+      'User id is required.',
+      { request_id: context.requestId },
+    );
+  }
+
+  if (authState.user.id === userId) {
+    throw new AuthServiceError(
+      400,
+      'BERSN_AUTH_SELF_DELETE_FORBIDDEN',
+      'You cannot delete your own account.',
+      { request_id: context.requestId },
+    );
+  }
+
+  const client = await pool.connect();
+  let revokedSessions: Array<{ refresh_token_hash: string }> = [];
+  try {
+    await client.query('BEGIN');
+
+    const existingUser = await findManagedUserById(client, userId);
+    if (!existingUser) {
+      throw new AuthServiceError(
+        404,
+        'BERSN_AUTH_USER_NOT_FOUND',
+        'User not found.',
+        { request_id: context.requestId },
+      );
+    }
+
+    revokedSessions = await revokeActiveSessionsByUserId(client, userId, 'admin_deleted_account');
+
+    const anonymized = await softDeleteAndAnonymizeUser(client, userId);
+    if (!anonymized) {
+      throw new AuthServiceError(
+        404,
+        'BERSN_AUTH_USER_NOT_FOUND',
+        'User not found.',
+        { request_id: context.requestId },
+      );
+    }
+
+    await insertAuditLog(client, {
+      ...buildAuditLogBase(context),
+      event_type: 'ACCOUNT_DELETED',
+      actor_user_id: authState.user.id,
+      target_user_id: userId,
+      session_id: authState.sessionId,
+      details_json: {
+        original_email: existingUser.email,
+        original_username: existingUser.username,
+        anonymized_username: anonymized.username,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    for (const session of revokedSessions) {
+      await revokeRefreshSession(session.refresh_token_hash).catch(() => {});
+    }
+
+    return { id: userId, deletedAt: new Date().toISOString() };
+  } catch (error) {
+    await rollbackQuietly(client);
+    if (error instanceof AuthServiceError) {
+      throw error;
+    }
+    console.error('[users] deleteManagedUserAsAdmin failed', {
+      request_id: context.requestId,
+      userId,
       actor_user_id: authState.user.id,
       error,
     });

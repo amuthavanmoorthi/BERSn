@@ -7,6 +7,7 @@ import {
   projectGeometryPreviewSchema,
   projectInfoUpdateSchema,
   projectStatusUpdateSchema,
+  projectSubmitSchema,
   projectWorkspaceSettingsSchema,
 } from '../schemas/projectSchemas.js';
 import type { AuthServiceError } from '../services/authService.js';
@@ -20,9 +21,11 @@ import {
   getDashboardStatsForUser,
   listProjectAuditLogsForUser,
   listProjectCalculationsForUser,
+  listProjectWorkflowHistoryForUser,
   listProjectsForUser,
   previewProjectGeometryForUser,
   softDeleteProjectForUser,
+  submitProjectForUser,
   updateProjectInfoForUser,
   updateProjectStatusForUser,
   updateProjectWorkspaceSettingsForUser,
@@ -214,9 +217,56 @@ export async function updateProjectStatus(req: Request, res: Response): Promise<
       req.auth,
       projectId,
       parsedBody.data.status,
+      parsedBody.data.reason,
     );
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: true, project });
+  } catch (error) {
+    return sendProjectError(res, req, error);
+  }
+}
+
+export async function submitProject(req: Request, res: Response): Promise<Response> {
+  if (!requireRequestAuth(req, res) || !req.auth) {
+    return res;
+  }
+  const projectId = getProjectIdParam(req, res);
+  if (!projectId) {
+    return res;
+  }
+  const parsedBody = projectSubmitSchema.safeParse(req.body || {});
+  if (!parsedBody.success) {
+    return res.status(400).json({
+      ok: false,
+      error_code: 'BERSN_API_VALIDATION_ERROR',
+      message: 'Submission payload did not pass validation.',
+      details: {
+        request_id: req.requestId || 'unknown',
+        field_errors: parsedBody.error.flatten().fieldErrors,
+      },
+    });
+  }
+  try {
+    const project = await submitProjectForUser(req, req.auth, projectId, parsedBody.data.reason);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: true, project });
+  } catch (error) {
+    return sendProjectError(res, req, error);
+  }
+}
+
+export async function getProjectWorkflowHistory(req: Request, res: Response): Promise<Response> {
+  if (!requireRequestAuth(req, res) || !req.auth) {
+    return res;
+  }
+  const projectId = getProjectIdParam(req, res);
+  if (!projectId) {
+    return res;
+  }
+  try {
+    const history = await listProjectWorkflowHistoryForUser(req, req.auth, projectId);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: true, history });
   } catch (error) {
     return sendProjectError(res, req, error);
   }

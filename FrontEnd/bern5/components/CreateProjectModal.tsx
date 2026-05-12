@@ -165,7 +165,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                             <option value="">{t ? '選擇建築類型' : 'Select building type'}</option>
                             {buildingTypes.map((buildingType) => (
                                 <option key={buildingType.code} value={buildingType.code}>
-                                    {t ? buildingType.labelZh : buildingType.labelEn} ({buildingType.euiBaseline} kWh/m²/yr)
+                                    {(t ? buildingType.labelZh : buildingType.labelEn).replace(/^[A-Z]-[\d/A-Z-]+\s+/, '')}
                                 </option>
                             ))}
                         </select>

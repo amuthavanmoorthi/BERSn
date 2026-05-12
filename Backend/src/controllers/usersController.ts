@@ -4,6 +4,7 @@ import type { AuthServiceError } from '../services/authService.js';
 import {
   createUserAccountAsAdmin,
   listUsersForAdmin,
+  deleteManagedUserAsAdmin,
   updateUserAccountStatusAsAdmin,
 } from '../services/userManagementService.js';
 import {
@@ -115,6 +116,29 @@ export async function updateUserStatus(req: Request, res: Response): Promise<Res
     );
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: true, user });
+  } catch (error) {
+    return sendUsersError(res, req, error);
+  }
+}
+
+export async function deleteUser(req: Request, res: Response): Promise<Response> {
+  if (!req.auth) {
+    return res.status(401).json({
+      ok: false,
+      error_code: 'BERSN_AUTH_TOKEN_INVALID',
+      message: 'Authentication required.',
+      details: { request_id: req.requestId || 'unknown' },
+    });
+  }
+
+  try {
+    const result = await deleteManagedUserAsAdmin(
+      req,
+      req.auth,
+      String(req.params.userId || ''),
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: true, ...result });
   } catch (error) {
     return sendUsersError(res, req, error);
   }

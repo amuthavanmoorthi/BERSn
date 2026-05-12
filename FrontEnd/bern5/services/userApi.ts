@@ -82,3 +82,18 @@ export async function updateUserStatus(userId: string, isActive: boolean): Promi
     }
     return assertSuccess(body, 'Failed to update account status.');
 }
+
+export async function deleteUserAccount(userId: string): Promise<{ id: string; deletedAt: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'X-Device-Fingerprint': buildFingerprint() },
+    });
+    const body = await response.json().catch(() => ({ ok: false, message: 'Invalid response.' })) as {
+        ok?: boolean; id?: string; deletedAt?: string; message?: string; error_code?: string;
+    };
+    if (response.ok && body.ok && body.id) {
+        return { id: body.id, deletedAt: body.deletedAt || new Date().toISOString() };
+    }
+    throw new Error(body.message || 'Failed to delete account.');
+}

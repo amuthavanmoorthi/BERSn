@@ -14,6 +14,8 @@ import {
     getOrganizations,
     getProjects,
 } from '../services/projectApi';
+import { useSession } from '../context/SessionContext';
+import { ALL_WORKFLOW_STATES, PERMISSIONS, describeWorkflowState } from '../services/rbacPolicy';
 
 interface ProjectDashboardProps {
     lang: 'zh' | 'en';
@@ -24,7 +26,7 @@ interface ProjectDashboardProps {
     onLogout?: () => void;
 }
 
-const STATUS_FILTERS: Array<ProjectStatus | 'all'> = ['all', 'DRAFT', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'];
+const STATUS_FILTERS: Array<ProjectStatus | 'all'> = ['all', ...ALL_WORKFLOW_STATES];
 
 const DEMO_PROJECTS: Project[] = [
     {
@@ -35,7 +37,7 @@ const DEMO_PROJECTS: Project[] = [
         location: '桃園區',
         createdAt: '2026-01-20T00:00:00.000Z',
         updatedAt: '2026-01-20T00:00:00.000Z',
-        status: 'IN_REVIEW',
+        status: 'UNDER_REVIEW',
         category: '辦公室',
         buildingType: 'Office',
         buildingTypeCode: 'OFFICE',
@@ -89,6 +91,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     onLogout,
 }) => {
     const t = lang === 'zh';
+    const session = useSession();
     const [projects, setProjects] = useState<Project[]>([]);
     const [buildingTypes, setBuildingTypes] = useState<BuildingTypeOption[]>([]);
     const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
@@ -98,6 +101,15 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
     const [pageError, setPageError] = useState('');
     const [pageMessage, setPageMessage] = useState('');
+
+    const canCreateProject = session.hasPermission(PERMISSIONS.PROJECT_CREATE);
+    const canManageUsers = session.hasPermission(PERMISSIONS.USER_LIST);
+    const canSeeGlobalOverview = session.hasAnyPermission(
+        PERMISSIONS.DASHBOARD_GLOBAL,
+        PERMISSIONS.DASHBOARD_AGENCY,
+        PERMISSIONS.DASHBOARD_VENDOR,
+    );
+    const canSeeSystemSettings = session.hasPermission(PERMISSIONS.SYSTEM_CONFIG);
 
     useEffect(() => {
         let cancelled = false;
@@ -143,12 +155,20 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     };
 
     const dashboardProjects = useMemo(() => {
+        // Vendors only see backend projects; admins/agencies also see demo cards.
+        const showDemoProjects = session.hasAnyPermission(
+            PERMISSIONS.PROJECT_VIEW_ALL,
+            PERMISSIONS.PROJECT_VIEW_ASSIGNED,
+        );
         const backendProjectIds = new Set(projects.map((project) => project.id));
+        if (!showDemoProjects) {
+            return projects;
+        }
         return [
             ...projects,
             ...DEMO_PROJECTS.filter((project) => !backendProjectIds.has(project.id)),
         ];
-    }, [projects]);
+    }, [projects, session]);
 
     const filteredProjects = useMemo(() => dashboardProjects.filter(project => {
         const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -161,14 +181,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     }), [dashboardProjects, searchTerm, statusFilter]);
 
     const statusLabel = (status: ProjectStatus | 'all') => {
-        const labels: Record<ProjectStatus | 'all', string> = {
-            all: t ? '全部狀態' : 'All Status',
-            DRAFT: t ? '草稿' : 'Draft',
-            IN_REVIEW: t ? '審查中' : 'In Review',
-            APPROVED: t ? '已核准' : 'Approved',
-            ARCHIVED: t ? '已封存' : 'Archived',
-        };
-        return labels[status];
+        if (status === 'all') return t ? '全部狀態' : 'All Status';
+        const descriptor = describeWorkflowState(status);
+        return t ? descriptor.zh : descriptor.en;
     };
 
     return (
@@ -197,24 +212,30 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                         <span>📋</span>
                         {t ? '專案入口網' : 'Project Portal'}
                     </a>
-                    <button
-                        onClick={onNavigateToOverview}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
-                    >
-                        <span>📊</span>
-                        {t ? '儀表板總覽' : 'Dashboard'}
-                    </button>
-                    <button
-                        onClick={onNavigateToAccounts}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
-                    >
-                        <span>👥</span>
-                        {t ? '帳號管理' : 'Account Management'}
-                    </button>
-                    <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors">
-                        <span>⚙️</span>
-                        {t ? '系統設定' : 'Settings'}
-                    </a>
+                    {canSeeGlobalOverview && (
+                        <button
+                            onClick={onNavigateToOverview}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
+                        >
+                            <span>📊</span>
+                            {t ? '儀表板總覽' : 'Dashboard'}
+                        </button>
+                    )}
+                    {canManageUsers && (
+                        <button
+                            onClick={onNavigateToAccounts}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
+                        >
+                            <span>👥</span>
+                            {t ? '帳號管理' : 'Account Management'}
+                        </button>
+                    )}
+                    {canSeeSystemSettings && (
+                        <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors">
+                            <span>⚙️</span>
+                            {t ? '系統設定' : 'Settings'}
+                        </a>
+                    )}
                 </nav>
 
                 {/* User Info */}
@@ -222,11 +243,15 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                     <div className="space-y-3">
                         <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
-                                U
+                                {(session.user?.username || 'U').slice(0, 1).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm text-slate-800 truncate">{t ? '使用者' : 'User'}</p>
-                                <p className="text-[10px] text-slate-400 truncate">{t ? '已驗證帳號' : 'Verified Account'}</p>
+                                <p className="font-bold text-sm text-slate-800 truncate">
+                                    {session.user?.username || (t ? '使用者' : 'User')}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate">
+                                    {session.role || (t ? '已驗證帳號' : 'Verified Account')}
+                                </p>
                             </div>
                         </div>
                         {onLogout && (
@@ -278,13 +303,15 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                             ))}
                         </select>
                         {/* Create Button */}
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center gap-2"
-                        >
-                            <span className="text-lg">+</span>
-                            {t ? '新增專案' : 'New Project'}
-                        </button>
+                        {canCreateProject && (
+                            <button
+                                onClick={() => setIsModalOpen(true)}
+                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center gap-2"
+                            >
+                                <span className="text-lg">+</span>
+                                {t ? '新增專案' : 'New Project'}
+                            </button>
+                        )}
                     </div>
                 </header>
 
@@ -302,19 +329,21 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {/* Create New Card */}
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="h-[320px] border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all duration-300 group"
-                        >
-                            <div className="w-16 h-16 rounded-2xl bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-3xl transition-colors">
-                                +
-                            </div>
-                            <span className="font-bold">{t ? '建立新專案' : 'Create New Project'}</span>
-                            <span className="text-[10px] font-bold text-slate-400 px-6 text-center">
-                                {t ? '建築類型與 EUI 基準值由資料庫提供' : 'Building type and EUI baseline come from the database'}
-                            </span>
-                        </button>
+                        {/* Create New Card — only visible to users with PROJECT_CREATE */}
+                        {canCreateProject && (
+                            <button
+                                onClick={() => setIsModalOpen(true)}
+                                className="h-[320px] border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all duration-300 group"
+                            >
+                                <div className="w-16 h-16 rounded-2xl bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-3xl transition-colors">
+                                    +
+                                </div>
+                                <span className="font-bold">{t ? '建立新專案' : 'Create New Project'}</span>
+                                <span className="text-[10px] font-bold text-slate-400 px-6 text-center">
+                                    {t ? '建築類型與 EUI 基準值由資料庫提供' : 'Building type and EUI baseline come from the database'}
+                                </span>
+                            </button>
+                        )}
 
                         {/* Project Cards */}
                         {filteredProjects.map(project => (

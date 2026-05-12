@@ -4,9 +4,11 @@ import type { ManagedUserCreateInput } from '../types/managedUser';
 import { ROLE_INFO, type User, type UserRole } from '../types/user';
 import UserCard from './UserCard';
 import CreateUserModal from './CreateUserModal';
+import { BuildingIcon, OfficeIcon, SettingsIcon, UsersIcon } from './icons/CommonIcons';
 import {
     UserApiError,
     createUserAccount,
+    deleteUserAccount,
     getUsers,
     updateUserStatus,
 } from '../services/userApi';
@@ -16,6 +18,8 @@ interface AccountManagementProps {
     onBack: () => void;
     onLanguageChange: () => void;
     onLogout?: () => void;
+    onNavigateToAgencies?: () => void;
+    onNavigateToSettings?: () => void;
 }
 
 const AccountManagement: React.FC<AccountManagementProps> = ({
@@ -23,6 +27,8 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
     onBack,
     onLanguageChange,
     onLogout,
+    onNavigateToAgencies,
+    onNavigateToSettings,
 }) => {
     const t = lang === 'zh';
     const [users, setUsers] = useState<User[]>([]);
@@ -30,6 +36,7 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isCreatingUser, setIsCreatingUser] = useState(false);
     const [statusUpdatingUserId, setStatusUpdatingUserId] = useState<string | null>(null);
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
     const [statusFilter, setStatusFilter] = useState<'all' | User['status']>('all');
@@ -88,6 +95,28 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
             throw new Error(error instanceof Error ? error.message : (t ? '建立帳號失敗。' : 'Failed to create account.'));
         } finally {
             setIsCreatingUser(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        const target = users.find((u) => u.id === userId);
+        if (!target) return;
+        const confirmMsg = t
+            ? `永久刪除「${target.name || target.email}」？此操作不可復原，但會釋放 ${target.email} 以供新帳號使用。`
+            : `Permanently delete "${target.name || target.email}"? This cannot be undone, but it will release ${target.email} for reuse.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setDeletingUserId(userId);
+        setPageError('');
+        setPageMessage('');
+        try {
+            await deleteUserAccount(userId);
+            setUsers((current) => current.filter((u) => u.id !== userId));
+            setPageMessage(t ? '帳號已永久刪除，該 email 可重新註冊。' : 'Account permanently deleted; email is now available.');
+        } catch (error) {
+            setPageError(error instanceof Error ? error.message : (t ? '刪除帳號失敗。' : 'Failed to delete account.'));
+        } finally {
+            setDeletingUserId(null);
         }
     };
 
@@ -160,21 +189,32 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
                         onClick={onBack}
                         className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors"
                     >
-                        <span>📋</span>
+                        <BuildingIcon className="w-4 h-4" />
                         {t ? '專案入口網' : 'Project Portal'}
                     </button>
-                    <a href="#" className="flex items-center gap-3 px-4 py-3 bg-slate-800 text-white rounded-xl font-bold text-sm">
-                        <span>👥</span>
+                    <button
+                        type="button"
+                        className="w-full flex items-center gap-3 px-4 py-3 bg-slate-800 text-white rounded-xl font-bold text-sm text-left"
+                    >
+                        <UsersIcon className="w-4 h-4" />
                         {t ? '帳號管理' : 'Account Management'}
-                    </a>
-                    <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors">
-                        <span>🏛️</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onNavigateToAgencies}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
+                    >
+                        <OfficeIcon className="w-4 h-4" />
                         {t ? '機關管理' : 'Agency Management'}
-                    </a>
-                    <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors">
-                        <span>⚙️</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onNavigateToSettings}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium text-sm transition-colors text-left"
+                    >
+                        <SettingsIcon className="w-4 h-4" />
                         {t ? '系統設定' : 'Settings'}
-                    </a>
+                    </button>
                 </nav>
 
                 {/* Role Legend */}
@@ -299,8 +339,8 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
                 <div className="flex-1 overflow-auto p-6">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                            <span className="text-4xl mb-4">⏳</span>
-                            <p className="font-bold">{t ? '正在載入使用者資料...' : 'Loading users...'}</p>
+                            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="font-bold">{t ? '正在載入使用者資料… Loading users…' : 'Loading users…'}</p>
                         </div>
                     ) : (
                         <>
@@ -312,7 +352,9 @@ const AccountManagement: React.FC<AccountManagementProps> = ({
                                         lang={lang}
                                         isAdmin={true}
                                         onToggleStatus={handleToggleStatus}
+                                        onDelete={handleDeleteUser}
                                         statusBusy={statusUpdatingUserId === user.id}
+                                        deleteBusy={deletingUserId === user.id}
                                     />
                                 ))}
                             </div>

@@ -1,14 +1,15 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BuildingCategory, ProjectBaseline, GeometryObject, GeometryType,
-  GlassType, ShadingType, HVACMode, GeographicRegion,
+  GlassType, ShadingType, HVACMode, GeographicRegion, Measure, Scenario,
   Floor, FloorShape
 } from './types';
-import { REGION_UR_MAP } from './constants';
+import { REGION_UR_MAP, MEASURE_LIBRARY } from './constants';
 import { calculateKPIs } from './services/calculationEngine';
 import { floorUnionArea } from './services/areaUnion';
 import { useUndoableState } from './hooks/useUndoableState';
+import { simulateMeasure, simulateScenario } from './services/optimizationEngine';
 import { translations } from './translations';
 import ThreeDViewer from './components/ThreeDViewer';
 import ReportView from './components/ReportView';
@@ -34,21 +35,10 @@ import {
   registerPasskey,
 } from './services/authApi';
 import {
-  createProjectScenario,
-  deleteProjectScenario,
   getConfigLookups,
-  getMeasureLibrary,
   getProject,
-  listProjectScenarios,
   previewProjectGeometry,
-  simulateAllMeasures,
-  simulateProjectScenario,
   updateWorkspaceSettings,
-  type BackendMeasure,
-  type BackendMeasureImpact,
-  type BackendMeasureSimulationBundle,
-  type BackendScenario,
-  type BackendScenarioResult,
 } from './services/projectApi';
 import type { ConfigLookups, GeometryPreview, Project } from './types/project';
 
@@ -249,24 +239,11 @@ const App: React.FC = () => {
   const [configSubTab, setConfigSubTab] = useState<'project' | 'envelope' | 'mep'>('project');
   const [analysisSubTab, setAnalysisSubTab] = useState<'eev' | 'mep'>('eev');
 
-  // Optimization tab — all data comes from backend
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
-  const [scenarios, setScenarios] = useState<BackendScenario[]>([]);
-  const [scenariosLoading, setScenariosLoading] = useState(false);
-  const [scenariosError, setScenariosError] = useState('');
-  const [measureLibrary, setMeasureLibrary] = useState<BackendMeasure[]>([]);
-  const [measureLibraryError, setMeasureLibraryError] = useState('');
-  const [optimizationBundle, setOptimizationBundle] = useState<BackendMeasureSimulationBundle | null>(null);
-  const [optimizationLoading, setOptimizationLoading] = useState(false);
-  const [optimizationError, setOptimizationError] = useState('');
-  const [scenarioResultsById, setScenarioResultsById] = useState<Record<string, BackendScenarioResult>>({});
-  const [scenarioResultLoading, setScenarioResultLoading] = useState(false);
-  const [scenarioResultError, setScenarioResultError] = useState('');
-  const [scenarioBuilderOpen, setScenarioBuilderOpen] = useState(false);
-  const [scenarioBuilderName, setScenarioBuilderName] = useState('');
-  const [scenarioBuilderSelectedIds, setScenarioBuilderSelectedIds] = useState<string[]>([]);
-  const [scenarioBuilderSaving, setScenarioBuilderSaving] = useState(false);
-  const [scenarioBuilderError, setScenarioBuilderError] = useState('');
+  const [scenarios, setScenarios] = useState<Scenario[]>([
+    { id: 'sc-1', name: lang === 'zh' ? '極致外殼方案 (外殼優先)' : 'Premium Eco (Envelope Focus)', selectedMeasureIds: ['m1', 'm2', 'm6'] },
+    { id: 'sc-2', name: '智慧機電方案 (控制優先)', selectedMeasureIds: ['m3', 'm4', 'm11'] }
+  ]);
 
   // Parameter Settings State
   const [selectedRegion, setSelectedRegion] = useState('REGION_A');
@@ -360,10 +337,10 @@ const App: React.FC = () => {
     };
   }, [geometryPreview, isBackendWorkspace, kpis]);
 
-  // measureImpacts is sorted by the backend already (CP-value descending).
-  const measureImpacts = useMemo<BackendMeasureImpact[]>(() => {
-    return optimizationBundle?.impacts ?? [];
-  }, [optimizationBundle]);
+  const measureImpacts = useMemo(() => {
+    return MEASURE_LIBRARY.map(m => simulateMeasure(baseline, objects, kpis, m))
+      .sort((a, b) => b.cpValue - a.cpValue);
+  }, [baseline, objects, kpis]);
 
   // Auto-sync total floor area from floor-based geometry (when not in backend mode).
   useEffect(() => {
@@ -646,202 +623,13 @@ const App: React.FC = () => {
     selectedWall,
   ]);
 
-  const activeScenarioResults = useMemo<BackendScenarioResult | null>(() => {
+  const activeScenarioResults = useMemo(() => {
     if (!selectedScenarioId) return null;
-    return scenarioResultsById[selectedScenarioId] ?? null;
-  }, [selectedScenarioId, scenarioResultsById]);
-
-  const measuresById = useMemo(() => {
-    const map = new Map<string, BackendMeasure>();
-    for (const m of measureLibrary) map.set(m.id, m);
-    return map;
-  }, [measureLibrary]);
-
-  // Load measure library once after authentication.
-  useEffect(() => {
-    if (!authReady || currentView === 'login') return;
-    if (measureLibrary.length > 0) return;
-    let cancelled = false;
-    getMeasureLibrary()
-      .then((items) => {
-        if (cancelled) return;
-        setMeasureLibrary(items);
-        setMeasureLibraryError('');
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setMeasureLibraryError(error instanceof Error ? error.message : 'Failed to load measure library.');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authReady, currentView, measureLibrary.length]);
-
-  // Load scenarios + measure impacts whenever the optimization tab opens for a real project.
-  const refreshScenarios = useCallback(async () => {
-    if (!activeProjectId || !isBackendWorkspace) {
-      setScenarios([]);
-      return;
-    }
-    setScenariosLoading(true);
-    setScenariosError('');
-    try {
-      const items = await listProjectScenarios(activeProjectId);
-      setScenarios(items);
-      // Seed any results already persisted on the server.
-      setScenarioResultsById((prev) => {
-        const next = { ...prev };
-        for (const sc of items) {
-          if (sc.latestResult) next[sc.id] = sc.latestResult;
-        }
-        return next;
-      });
-    } catch (error) {
-      setScenariosError(error instanceof Error ? error.message : 'Failed to load scenarios.');
-    } finally {
-      setScenariosLoading(false);
-    }
-  }, [activeProjectId, isBackendWorkspace]);
-
-  const refreshOptimizationBundle = useCallback(async () => {
-    if (!activeProjectId || !isBackendWorkspace) {
-      setOptimizationBundle(null);
-      return;
-    }
-    setOptimizationLoading(true);
-    setOptimizationError('');
-    try {
-      const bundle = await simulateAllMeasures(activeProjectId);
-      setOptimizationBundle(bundle);
-    } catch (error) {
-      setOptimizationError(error instanceof Error ? error.message : 'Failed to compute measure impacts.');
-      setOptimizationBundle(null);
-    } finally {
-      setOptimizationLoading(false);
-    }
-  }, [activeProjectId, isBackendWorkspace]);
-
-  // Trigger loads when entering the optimization tab.
-  useEffect(() => {
-    if (activeTab !== 'optimization') return;
-    if (!isBackendWorkspace || !activeProjectId) return;
-    void refreshScenarios();
-    void refreshOptimizationBundle();
-  }, [activeTab, activeProjectId, isBackendWorkspace, refreshScenarios, refreshOptimizationBundle]);
-
-  // Clear optimize-tab caches when the project changes.
-  useEffect(() => {
-    setSelectedScenarioId(null);
-    setScenarios([]);
-    setScenarioResultsById({});
-    setOptimizationBundle(null);
-    setOptimizationError('');
-    setScenariosError('');
-    setScenarioBuilderOpen(false);
-    setScenarioBuilderName('');
-    setScenarioBuilderSelectedIds([]);
-    setScenarioBuilderError('');
-  }, [activeProjectId]);
-
-  const handleSelectScenario = useCallback(async (scenarioId: string) => {
-    setSelectedScenarioId(scenarioId);
-    setScenarioResultError('');
-    if (scenarioResultsById[scenarioId]) {
-      // Use cached result; user can re-run by pressing the simulate button again if exposed.
-      return;
-    }
-    if (!activeProjectId) return;
-    setScenarioResultLoading(true);
-    try {
-      const result = await simulateProjectScenario(activeProjectId, scenarioId);
-      setScenarioResultsById((prev) => ({ ...prev, [scenarioId]: result }));
-    } catch (error) {
-      setScenarioResultError(error instanceof Error ? error.message : 'Failed to simulate scenario.');
-    } finally {
-      setScenarioResultLoading(false);
-    }
-  }, [activeProjectId, scenarioResultsById]);
-
-  const handleResimulateScenario = useCallback(async (scenarioId: string) => {
-    if (!activeProjectId) return;
-    setScenarioResultLoading(true);
-    setScenarioResultError('');
-    try {
-      const result = await simulateProjectScenario(activeProjectId, scenarioId);
-      setScenarioResultsById((prev) => ({ ...prev, [scenarioId]: result }));
-    } catch (error) {
-      setScenarioResultError(error instanceof Error ? error.message : 'Failed to simulate scenario.');
-    } finally {
-      setScenarioResultLoading(false);
-    }
-  }, [activeProjectId]);
-
-  const handleOpenScenarioBuilder = useCallback(() => {
-    setScenarioBuilderOpen(true);
-    setScenarioBuilderName('');
-    setScenarioBuilderSelectedIds([]);
-    setScenarioBuilderError('');
-  }, []);
-
-  const handleToggleBuilderMeasure = useCallback((measureId: string) => {
-    setScenarioBuilderSelectedIds((prev) => (
-      prev.includes(measureId)
-        ? prev.filter((id) => id !== measureId)
-        : [...prev, measureId]
-    ));
-  }, []);
-
-  const handleCreateScenario = useCallback(async () => {
-    if (!activeProjectId) return;
-    const trimmedName = scenarioBuilderName.trim();
-    if (!trimmedName) {
-      setScenarioBuilderError(lang === 'zh' ? '請輸入方案名稱。' : 'Please enter a scenario name.');
-      return;
-    }
-    if (scenarioBuilderSelectedIds.length === 0) {
-      setScenarioBuilderError(lang === 'zh' ? '請至少選擇一項措施。' : 'Please select at least one measure.');
-      return;
-    }
-    setScenarioBuilderSaving(true);
-    setScenarioBuilderError('');
-    try {
-      const created = await createProjectScenario(activeProjectId, {
-        name: trimmedName,
-        selectedMeasureIds: scenarioBuilderSelectedIds,
-      });
-      setScenarios((prev) => [created, ...prev]);
-      setScenarioBuilderOpen(false);
-      setScenarioBuilderName('');
-      setScenarioBuilderSelectedIds([]);
-      // Kick off a simulation so the user sees results immediately.
-      void handleSelectScenario(created.id);
-    } catch (error) {
-      setScenarioBuilderError(error instanceof Error ? error.message : 'Failed to create scenario.');
-    } finally {
-      setScenarioBuilderSaving(false);
-    }
-  }, [activeProjectId, scenarioBuilderName, scenarioBuilderSelectedIds, lang, handleSelectScenario]);
-
-  const handleDeleteScenario = useCallback(async (scenarioId: string) => {
-    if (!activeProjectId) return;
-    if (typeof window !== 'undefined' && !window.confirm(lang === 'zh' ? '確定要刪除這個方案？' : 'Delete this scenario?')) {
-      return;
-    }
-    try {
-      await deleteProjectScenario(activeProjectId, scenarioId);
-      setScenarios((prev) => prev.filter((s) => s.id !== scenarioId));
-      setScenarioResultsById((prev) => {
-        const next = { ...prev };
-        delete next[scenarioId];
-        return next;
-      });
-      if (selectedScenarioId === scenarioId) {
-        setSelectedScenarioId(null);
-      }
-    } catch (error) {
-      setScenariosError(error instanceof Error ? error.message : 'Failed to delete scenario.');
-    }
-  }, [activeProjectId, lang, selectedScenarioId]);
+    const scenario = scenarios.find(s => s.id === selectedScenarioId);
+    if (!scenario) return null;
+    const selectedMeasures = MEASURE_LIBRARY.filter(m => scenario.selectedMeasureIds.includes(m.id));
+    return simulateScenario(baseline, objects, kpis, selectedMeasures);
+  }, [selectedScenarioId, scenarios, baseline, objects, kpis]);
 
   const handleEnterProject = (projectId: string) => {
     setActiveBackendProject(null);
@@ -1106,48 +894,21 @@ const App: React.FC = () => {
         ) : activeTab === 'optimization' ? (
           <div className="lg:col-span-12 grid grid-cols-12 gap-8 overflow-y-auto custom-scrollbar p-2">
             <div className="col-span-12 lg:col-span-7 space-y-8">
-              {!isBackendWorkspace && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-xs font-bold text-amber-700">
-                  {lang === 'zh' ? '請先從專案儀表板進入專案，以載入後端資料。' : 'Open a real project from the dashboard to load backend data.'}
-                </div>
-              )}
-              {(measureLibraryError || optimizationError) && (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-xs font-bold text-red-700">
-                  {measureLibraryError || optimizationError}
-                </div>
-              )}
               <section className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-800 mb-6 flex justify-between items-center">
                   <span>{t.measureLibrary}</span>
-                  <span className="text-xs font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                    {optimizationLoading
-                      ? (lang === 'zh' ? '計算中…' : 'Calculating…')
-                      : `${measureImpacts.length} / ${measureLibrary.length} ${t.measuresAnalyzed}`}
-                  </span>
+                  <span className="text-xs font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full border border-slate-200">{MEASURE_LIBRARY.length} {t.measuresAnalyzed}</span>
                 </h2>
-                {measureLibrary.length === 0 ? (
-                  <div className="text-xs font-bold text-slate-400">
-                    {lang === 'zh' ? '正在載入措施資料…' : 'Loading measure library…'}
-                  </div>
-                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {measureLibrary.map(m => {
+                  {MEASURE_LIBRARY.map(m => {
                     const impact = measureImpacts.find(imp => imp.measureId === m.id);
-                    const measureName = lang === 'zh' ? m.nameZh : m.nameEn;
-                    const measureDesc = lang === 'zh' ? m.descriptionZh : m.descriptionEn;
+                    const measureName = t[`${m.id}_name` as keyof typeof t] || m.name;
+                    const measureDesc = t[`${m.id}_desc` as keyof typeof t] || m.description;
                     const categoryName = t[`cat_${m.category}` as keyof typeof t] || m.category;
-                    const categoryClasses: Record<BackendMeasure['category'], string> = {
-                      ENVELOPE: 'bg-orange-100 text-orange-600',
-                      HVAC: 'bg-blue-100 text-blue-600',
-                      LIGHTING: 'bg-yellow-100 text-yellow-700',
-                      ELEVATOR: 'bg-purple-100 text-purple-600',
-                      DHW: 'bg-cyan-100 text-cyan-700',
-                      CONTROL: 'bg-emerald-100 text-emerald-700',
-                    };
                     return (
                       <div key={m.id} className={`p-5 rounded-3xl border transition-all ${impact?.isEligible ? 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-md' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                         <div className="flex justify-between items-start mb-3">
-                          <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${categoryClasses[m.category] || 'bg-slate-100 text-slate-600'}`}>{categoryName}</span>
+                          <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${m.category === 'Envelope' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>{categoryName}</span>
                           {impact?.isEligible ? (
                             <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">✅ {t.eligible}</span>
                           ) : (
@@ -1159,29 +920,21 @@ const App: React.FC = () => {
                         <div className="flex justify-between items-center pt-4 border-t border-slate-50">
                           <div className="flex flex-col">
                             <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t.deltaEEI}</span>
-                            <span className={`text-sm font-black ${impact && impact.deltaEEI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{impact ? (impact.deltaEEI >= 0 ? '-' : '+') : '-'}{impact ? Math.abs(impact.deltaEEI).toFixed(3) : '0.000'}</span>
+                            <span className="text-sm font-black text-emerald-600">-{impact?.deltaEEI.toFixed(3) || '0.000'}</span>
                           </div>
                           <div className="flex flex-col text-right">
                             <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t.cost}</span>
-                            <span className="text-sm font-black text-slate-800">${(impact?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span className="text-sm font-black text-slate-800">${(impact?.cost || 0).toLocaleString()}</span>
                           </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-                )}
               </section>
 
               <section className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-800 mb-6 flex justify-between items-center">
-                  <span>{t.cpRanking}</span>
-                  {optimizationBundle && (
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">
-                      {lang === 'zh' ? '基線 EEI' : 'Baseline EEI'} {optimizationBundle.baselineEEI.toFixed(3)} · {lang === 'zh' ? '等級' : 'Grade'} {optimizationBundle.baselineGrade}
-                    </span>
-                  )}
-                </h2>
+                <h2 className="text-2xl font-black text-slate-800 mb-6">{t.cpRanking}</h2>
                 <div className="overflow-hidden rounded-2xl border border-slate-100">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -1195,29 +948,20 @@ const App: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-bold">
                       {measureImpacts.filter(i => i.isEligible).map((imp, idx) => {
-                        const m = measuresById.get(imp.measureId);
-                        const measureName = m ? (lang === 'zh' ? m.nameZh : m.nameEn) : imp.measureId;
+                        const m = MEASURE_LIBRARY.find(ml => ml.id === imp.measureId)!;
+                        const measureName = t[`${m.id}_name` as keyof typeof t] || m.name;
                         return (
                           <tr key={imp.measureId} className="hover:bg-slate-50 transition-colors">
                             <td className="p-4 text-slate-400">#{idx < 9 ? '0' : ''}{idx + 1}</td>
                             <td className="p-4">{measureName}</td>
-                            <td className={`p-4 ${imp.deltaEEI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{imp.deltaEEI >= 0 ? '-' : '+'}{Math.abs(imp.deltaEEI).toFixed(3)}</td>
-                            <td className="p-4">${imp.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            <td className="p-4 text-emerald-600">-{imp.deltaEEI.toFixed(3)}</td>
+                            <td className="p-4">${imp.cost.toLocaleString()}</td>
                             <td className="p-4 text-right">
                               <span className={`px-3 py-1 rounded-full text-[10px] font-black ${idx === 0 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}`}>{imp.cpValue.toFixed(2)}</span>
                             </td>
                           </tr>
                         );
                       })}
-                      {measureImpacts.filter(i => i.isEligible).length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="p-6 text-center text-slate-400">
-                            {optimizationLoading
-                              ? (lang === 'zh' ? '計算中…' : 'Calculating…')
-                              : (lang === 'zh' ? '尚無可用措施' : 'No eligible measures yet')}
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1228,173 +972,46 @@ const App: React.FC = () => {
               <section className="bg-[#0f172a] p-10 rounded-[2.5rem] text-white shadow-2xl space-y-8">
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-black">{t.scenarios}</h2>
-                  <button
-                    onClick={handleOpenScenarioBuilder}
-                    disabled={!isBackendWorkspace || measureLibrary.length === 0}
-                    className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
-                  >
-                    + {lang === 'zh' ? '新增' : 'New'}
-                  </button>
+                  <button className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors">+ {lang === 'zh' ? '新增' : 'New'}</button>
                 </div>
 
-                {scenariosError && (
-                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-[10px] font-bold text-red-300">
-                    {scenariosError}
-                  </div>
-                )}
-
-                {scenarioBuilderOpen && (
-                  <div className="rounded-2xl bg-white/5 p-5 border border-white/10 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-                        {lang === 'zh' ? '新增方案' : 'Create scenario'}
-                      </p>
-                      <button
-                        onClick={() => setScenarioBuilderOpen(false)}
-                        className="text-[10px] font-black text-slate-400 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <input
-                      value={scenarioBuilderName}
-                      onChange={(e) => setScenarioBuilderName(e.target.value)}
-                      placeholder={lang === 'zh' ? '方案名稱' : 'Scenario name'}
-                      className="w-full bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-lg px-3 py-2 placeholder:text-slate-500"
-                      maxLength={200}
-                    />
-                    <div className="max-h-56 overflow-y-auto pr-1 space-y-1 custom-scrollbar">
-                      {measureLibrary.map((m) => {
-                        const selected = scenarioBuilderSelectedIds.includes(m.id);
-                        const label = lang === 'zh' ? m.nameZh : m.nameEn;
-                        return (
-                          <label
-                            key={m.id}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${selected ? 'bg-blue-500/15 text-white' : 'text-slate-300 hover:bg-white/5'}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => handleToggleBuilderMeasure(m.id)}
-                              className="accent-blue-500"
-                            />
-                            <span className="flex-1">{label}</span>
-                            <span className="text-[9px] text-slate-500 uppercase">{m.category}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    {scenarioBuilderError && (
-                      <div className="text-[10px] font-bold text-red-300">{scenarioBuilderError}</div>
-                    )}
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setScenarioBuilderOpen(false)}
-                        className="px-4 py-2 rounded-lg text-[10px] font-black uppercase text-slate-300 hover:text-white"
-                      >
-                        {lang === 'zh' ? '取消' : 'Cancel'}
-                      </button>
-                      <button
-                        onClick={handleCreateScenario}
-                        disabled={scenarioBuilderSaving}
-                        className="bg-blue-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-blue-500 disabled:bg-slate-700 disabled:cursor-not-allowed"
-                      >
-                        {scenarioBuilderSaving
-                          ? (lang === 'zh' ? '儲存中…' : 'Saving…')
-                          : (lang === 'zh' ? '建立' : 'Create')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 <div className="space-y-4">
-                  {scenariosLoading && scenarios.length === 0 && (
-                    <div className="text-[11px] font-bold text-slate-400">
-                      {lang === 'zh' ? '正在載入方案…' : 'Loading scenarios…'}
-                    </div>
-                  )}
-                  {!scenariosLoading && scenarios.length === 0 && !scenarioBuilderOpen && (
-                    <div className="text-[11px] font-bold text-slate-400">
-                      {lang === 'zh' ? '尚無方案。請按「新增」建立第一個方案。' : 'No scenarios yet. Use “+ New” to create one.'}
-                    </div>
-                  )}
                   {scenarios.map(sc => (
-                    <div key={sc.id} onClick={() => handleSelectScenario(sc.id)} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${selectedScenarioId === sc.id ? 'bg-blue-600/10 border-blue-500' : 'bg-slate-800/50 border-transparent hover:border-slate-700'}`}>
+                    <div key={sc.id} onClick={() => setSelectedScenarioId(sc.id)} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${selectedScenarioId === sc.id ? 'bg-blue-600/10 border-blue-500' : 'bg-slate-800/50 border-transparent hover:border-slate-700'}`}>
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h4 className="font-black text-lg">{sc.name}</h4>
                           <p className="text-[10px] text-slate-400 font-bold">{sc.selectedMeasureIds.length} {t.measuresSelected}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void handleDeleteScenario(sc.id); }}
-                            title={lang === 'zh' ? '刪除' : 'Delete'}
-                            className="w-6 h-6 rounded-full border-2 border-slate-600 text-slate-400 hover:text-red-300 hover:border-red-400 transition-colors text-[10px]"
-                          >
-                            ✕
-                          </button>
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedScenarioId === sc.id ? 'border-blue-400 bg-blue-500' : 'border-slate-600'}`}>
-                            {selectedScenarioId === sc.id && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
-                          </div>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedScenarioId === sc.id ? 'border-blue-400 bg-blue-500' : 'border-slate-600'}`}>
+                          {selectedScenarioId === sc.id && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
                         </div>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        {sc.selectedMeasureIds.map(mid => {
-                          const meas = measuresById.get(mid);
-                          const label = meas ? (lang === 'zh' ? meas.nameZh : meas.nameEn) : mid;
-                          return (
-                            <span key={mid} className="text-[9px] font-black bg-slate-900/50 px-2 py-1 rounded-lg border border-slate-700">
-                              {label}
-                            </span>
-                          );
-                        })}
+                        {sc.selectedMeasureIds.map(mid => (
+                          <span key={mid} className="text-[9px] font-black bg-slate-900/50 px-2 py-1 rounded-lg border border-slate-700">
+                            {t[`${mid}_name` as keyof typeof t] || MEASURE_LIBRARY.find(m => m.id === mid)?.name}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {selectedScenarioId && (
-                  <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10 animate-in fade-in slide-in-from-bottom-2 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{t.scenarioPerf}</p>
-                      <button
-                        onClick={() => void handleResimulateScenario(selectedScenarioId)}
-                        disabled={scenarioResultLoading}
-                        className="text-[9px] font-black uppercase text-slate-400 hover:text-white disabled:opacity-50"
-                      >
-                        {scenarioResultLoading
-                          ? (lang === 'zh' ? '計算中…' : 'Simulating…')
-                          : (lang === 'zh' ? '重新模擬' : 'Re-simulate')}
-                      </button>
+                {selectedScenarioId && activeScenarioResults && (
+                  <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10 animate-in fade-in slide-in-from-bottom-2">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">{t.scenarioPerf}</p>
+                    <div className="grid grid-cols-2 gap-8">
+                      <div>
+                        <span className="text-[9px] text-slate-500 font-black uppercase">{t.resultEEI}</span>
+                        <div className="text-3xl font-black text-emerald-400">{activeScenarioResults.kpis.eei.toFixed(3)}</div>
+                        <div className="text-[10px] font-bold text-slate-400 mt-1">{t.grade}: {activeScenarioResults.kpis.grade}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-slate-500 font-black uppercase">{t.totalCost}</span>
+                        <div className="text-3xl font-black text-white">${activeScenarioResults.totalCost.toLocaleString()}</div>
+                      </div>
                     </div>
-                    {scenarioResultError && (
-                      <div className="text-[10px] font-bold text-red-300">{scenarioResultError}</div>
-                    )}
-                    {activeScenarioResults ? (
-                      <div className="grid grid-cols-2 gap-8">
-                        <div>
-                          <span className="text-[9px] text-slate-500 font-black uppercase">{t.resultEEI}</span>
-                          <div className="text-3xl font-black text-emerald-400">{activeScenarioResults.simulatedEEI.toFixed(3)}</div>
-                          <div className="text-[10px] font-bold text-slate-400 mt-1">{t.grade}: {activeScenarioResults.simulatedGrade}</div>
-                          {activeScenarioResults.baselineEEI !== null && (
-                            <div className="text-[10px] font-bold text-slate-500 mt-1">
-                              Δ {(activeScenarioResults.baselineEEI - activeScenarioResults.simulatedEEI).toFixed(3)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[9px] text-slate-500 font-black uppercase">{t.totalCost}</span>
-                          <div className="text-3xl font-black text-white">${activeScenarioResults.totalCostTwd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                          <div className="text-[10px] font-bold text-slate-500 mt-1">CP {activeScenarioResults.cpValue.toFixed(2)}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-[11px] font-bold text-slate-400">
-                        {scenarioResultLoading
-                          ? (lang === 'zh' ? '正在模擬…' : 'Simulating…')
-                          : (lang === 'zh' ? '尚未模擬。' : 'Not simulated yet.')}
-                      </div>
-                    )}
                   </div>
                 )}
               </section>
@@ -1533,6 +1150,7 @@ const App: React.FC = () => {
                     canUndo={canUndoFloors}
                     canRedo={canRedoFloors}
                     topViewRequestSeq={topViewRequestSeq}
+                    heatmapMode={heatmapMode}
                   />
 
                   {/* Heatmap toggle (top-right of 3D viewer) */}
@@ -1651,7 +1269,7 @@ const App: React.FC = () => {
           <span>Architectural Performance Digital Twin Engine</span>
         </div>
       </footer>
-    </div>
+    </div >
   );
 };
 

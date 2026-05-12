@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-export const PROJECT_STATUS_VALUES = ['DRAFT', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] as const;
+export const PROJECT_STATUS_VALUES = [
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'APPROVED',
+  'REJECTED',
+  'REVISION_REQUESTED',
+  'COMPLETED',
+  'ARCHIVED',
+] as const;
 
 function sanitizeHumanText(value: string, maxLength: number): string {
   return String(value || '')
@@ -53,7 +62,14 @@ export const projectInfoUpdateSchema = z.object({
 
 export const projectStatusUpdateSchema = z.object({
   status: z.enum(PROJECT_STATUS_VALUES),
+  reason: z.string().trim().max(2000).optional(),
 });
+
+export const projectSubmitSchema = z.object({
+  reason: z.string().trim().max(2000).optional(),
+});
+
+export type ProjectSubmitInput = z.output<typeof projectSubmitSchema>;
 
 export const projectCalculationCreateSchema = z.object({
   eui_result: z.coerce.number().positive().optional(),

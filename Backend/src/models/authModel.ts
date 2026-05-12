@@ -628,3 +628,23 @@ export async function deleteUserById(client: PoolClient, userId: string): Promis
     [userId],
   );
 }
+
+export async function softDeleteAndAnonymizeUser(
+  client: PoolClient,
+  userId: string,
+): Promise<ManagedUserRow | null> {
+  const anonymizedEmail = `deleted-${userId}@deleted.local`;
+  const { rows } = await client.query<ManagedUserRow>(
+    `UPDATE users
+        SET is_active    = FALSE,
+            username     = $2,
+            email        = $2,
+            full_name    = 'Deleted User',
+            password_hash = '',
+            updated_at   = NOW()
+      WHERE id = $1
+      RETURNING *`,
+    [userId, anonymizedEmail],
+  );
+  return rows[0] ?? null;
+}

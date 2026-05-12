@@ -1,0 +1,2323 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BERSn Backend API",
+    "version": "1.0.0",
+    "description": "桃園市建築物能源設計平台 (Taoyuan Building Energy Design Platform)\n\nAll protected endpoints require a valid `bersn_access_token` cookie (set automatically on login). The token auto-refreshes via `bersn_refresh_token`.",
+    "contact": {
+      "name": "BERSn Dev Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local Docker backend"
+    },
+    {
+      "url": "http://localhost:3002",
+      "description": "Via Vite proxy (dev)"
+    },
+    {
+      "url": "https://api.bersn.staging",
+      "description": "Staging"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Service health & readiness"
+    },
+    {
+      "name": "auth",
+      "description": "Authentication — login, passkey, session"
+    },
+    {
+      "name": "projects",
+      "description": "Project CRUD, workspace settings, geometry preview"
+    },
+    {
+      "name": "calc",
+      "description": "Energy calculations & history"
+    },
+    {
+      "name": "dashboard",
+      "description": "Aggregated dashboard statistics"
+    },
+    {
+      "name": "users",
+      "description": "User management (SYS_ADMIN only)"
+    },
+    {
+      "name": "lookup",
+      "description": "Config lookup tables (envelopes, MEP, regions, …)"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "bersn_access_token"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": false
+          },
+          "error_code": {
+            "type": "string",
+            "example": "BERSN_AUTH_TOKEN_INVALID"
+          },
+          "message": {
+            "type": "string",
+            "example": "Authentication required."
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "SYS_ADMIN",
+              "AGENCY_USER",
+              "VENDOR_USER"
+            ]
+          },
+          "organization": {
+            "type": "string",
+            "nullable": true
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "is_first_login": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "APPROVED",
+              "ARCHIVED"
+            ]
+          },
+          "buildingType": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "labelZh": {
+                "type": "string"
+              },
+              "labelEn": {
+                "type": "string"
+              },
+              "euiBaseline": {
+                "type": "number"
+              }
+            }
+          },
+          "totalFloorArea": {
+            "type": "number"
+          },
+          "floors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Floor-based geometry (JSONB)"
+          },
+          "geometryObjects": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Legacy geometry objects"
+          },
+          "selectedRegion": {
+            "type": "string"
+          },
+          "selectedWall": {
+            "type": "string"
+          },
+          "selectedRoof": {
+            "type": "string"
+          },
+          "selectedShading": {
+            "type": "string"
+          },
+          "selectedGlazing": {
+            "type": "string"
+          },
+          "selectedHvac": {
+            "type": "string"
+          },
+          "selectedLighting": {
+            "type": "string"
+          },
+          "selectedElevator": {
+            "type": "string"
+          },
+          "selectedDhw": {
+            "type": "string"
+          },
+          "elevatorCount": {
+            "type": "integer"
+          },
+          "latestCalculation": {
+            "type": "object",
+            "properties": {
+              "eeiResult": {
+                "type": "number",
+                "nullable": true
+              },
+              "grade": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "workspaceSavedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Calculation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculationVersion": {
+            "type": "integer"
+          },
+          "euiResult": {
+            "type": "number",
+            "nullable": true
+          },
+          "totalEnergyKwh": {
+            "type": "number",
+            "nullable": true
+          },
+          "carbon_emission_kg": {
+            "type": "number",
+            "nullable": true
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "1+",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ],
+            "nullable": true
+          },
+          "calculatedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Measure": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "eligibility": {
+            "type": "object"
+          },
+          "patches": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "costModel": {
+            "type": "object"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Scenario": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "measureIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "SimulationResult": {
+        "type": "object",
+        "properties": {
+          "measureId": {
+            "type": "string",
+            "nullable": true
+          },
+          "scenarioId": {
+            "type": "string",
+            "nullable": true
+          },
+          "deltaEEI": {
+            "type": "number"
+          },
+          "totalCost": {
+            "type": "number"
+          },
+          "cpValue": {
+            "type": "number"
+          },
+          "newKPIs": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness check",
+        "description": "Returns ok:true if the Express server is up and PostgreSQL responds.",
+        "responses": {
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness check (DB + Redis)",
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "checks": {
+                      "type": "object",
+                      "properties": {
+                        "database": {
+                          "type": "string"
+                        },
+                        "redis": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready yet"
+          }
+        }
+      }
+    },
+    "/api/measures": {
+      "get": {
+        "tags": [
+          "optimization"
+        ],
+        "summary": "List active energy saving measures",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Measure list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "measures": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Measure"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "tags": [
+          "optimization"
+        ],
+        "summary": "List predefined design scenarios",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scenario list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "scenarios": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Scenario"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/simulate": {
+      "post": {
+        "tags": [
+          "optimization"
+        ],
+        "summary": "Simulate measure or scenario impact",
+        "description": "Runs backend Python engine to calculate EEI reduction and cost for given measures/scenario.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "baseInput"
+                ],
+                "properties": {
+                  "measureIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "scenarioId": {
+                    "type": "string"
+                  },
+                  "baseInput": {
+                    "type": "object",
+                    "description": "Current workspace state following ProjectGeometryPreviewInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/SimulationResult"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SimulationResult"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Password login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password",
+                  "remember_me"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "Taoyuan@2026Platform!"
+                  },
+                  "remember_me": {
+                    "type": "boolean",
+                    "example": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful. Sets bersn_access_token + bersn_refresh_token cookies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    },
+                    "must_change_password": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Invalid credentials / account locked"
+          }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh access token",
+        "description": "Uses the bersn_refresh_token cookie to issue a new access token. Called automatically by requireAuth middleware.",
+        "responses": {
+          "200": {
+            "description": "New cookies set"
+          },
+          "401": {
+            "description": "Refresh token invalid or expired"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout — revoke session and clear cookies",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get current authenticated user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change password",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "current_password",
+                  "new_password"
+                ],
+                "properties": {
+                  "current_password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "new_password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Min 12 chars, must not contain username"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed. is_first_login set to false."
+          },
+          "400": {
+            "description": "Weak password / validation error"
+          },
+          "401": {
+            "description": "Wrong current password"
+          }
+        }
+      }
+    },
+    "/api/auth/admin/users": {
+      "post": {
+        "tags": [
+          "auth",
+          "users"
+        ],
+        "summary": "Admin — create user (SYS_ADMIN only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password",
+                  "role"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "SYS_ADMIN",
+                      "AGENCY_USER",
+                      "VENDOR_USER"
+                    ]
+                  },
+                  "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created"
+          },
+          "403": {
+            "description": "Forbidden — SYS_ADMIN required"
+          }
+        }
+      }
+    },
+    "/api/auth/webauthn/login/options": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get WebAuthn login challenge",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Challenge options"
+          }
+        }
+      }
+    },
+    "/api/auth/webauthn/login/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify WebAuthn login response",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful"
+          },
+          "500": {
+            "description": "Verification failed"
+          }
+        }
+      }
+    },
+    "/api/auth/webauthn/register/options": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get WebAuthn registration challenge",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Challenge options"
+          }
+        }
+      }
+    },
+    "/api/auth/webauthn/register/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify WebAuthn registration",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Passkey registered"
+          }
+        }
+      }
+    },
+    "/api/building-types": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List available building types",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Building type list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "building_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelZh": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "euiBaseline": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List organizations visible to current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization list"
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List all projects (scoped by role)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Project"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create a new project",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_name",
+                  "building_type_code",
+                  "total_floor_area"
+                ],
+                "properties": {
+                  "project_name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "organization_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "building_type_code": {
+                    "type": "string",
+                    "example": "OFFICE"
+                  },
+                  "total_floor_area": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "example": 8500
+                  },
+                  "assigned_to": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created with starter geometry auto-generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "project": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get single project (includes starter geometry for new projects)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "project": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Soft-delete project (sets status=ARCHIVED)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/project-info": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update project name / location / building type",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_name",
+                  "building_type_code"
+                ],
+                "properties": {
+                  "project_name": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "building_type_code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/status": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update project status",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT",
+                      "IN_REVIEW",
+                      "APPROVED",
+                      "ARCHIVED"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/assign": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Assign project to a user (SYS_ADMIN only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "assigned_to"
+                ],
+                "properties": {
+                  "assigned_to": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assigned"
+          },
+          "403": {
+            "description": "SYS_ADMIN only"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/workspace-settings": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Auto-save full workspace state (envelope, MEP, floors)",
+        "description": "Called automatically every 600 ms when any workspace parameter changes. Persists floors (JSONB), geometry, envelope and MEP selections.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "floors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "Floor array with shapes"
+                  },
+                  "geometry_objects": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "exempt_areas": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "elevator_count": {
+                    "type": "integer"
+                  },
+                  "selected_region": {
+                    "type": "string",
+                    "example": "REGION_A"
+                  },
+                  "selected_use_category": {
+                    "type": "string",
+                    "example": "USE_OFFICE"
+                  },
+                  "selected_wall": {
+                    "type": "string",
+                    "example": "CONS_WALL_RC_INS"
+                  },
+                  "selected_roof": {
+                    "type": "string",
+                    "example": "CONS_ROOF_RC_INS"
+                  },
+                  "selected_shading": {
+                    "type": "string",
+                    "example": "SH_OVERHANG"
+                  },
+                  "selected_glazing": {
+                    "type": "string",
+                    "example": "GLZ_DBL_LOW_E"
+                  },
+                  "selected_hvac": {
+                    "type": "string",
+                    "example": "HVAC_VRF"
+                  },
+                  "selected_lighting": {
+                    "type": "string",
+                    "example": "LGT_LED"
+                  },
+                  "selected_elevator": {
+                    "type": "string",
+                    "example": "ET_VVVF"
+                  },
+                  "selected_dhw": {
+                    "type": "string",
+                    "example": "DHW_NONE"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved"
+          },
+          "409": {
+            "description": "Project not in DRAFT status"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/geometry/preview": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Run geometry preview — returns EEI, Grade, wall/window areas, renderParams",
+        "description": "Spawns Python BERSn calculation engine. Returns performance KPIs (EEI, ESR, grade) and renderParams.objects with shadingType/glassType injected for 3D visualization.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "objects"
+                ],
+                "properties": {
+                  "floor_height_m": {
+                    "type": "number",
+                    "default": 3.5
+                  },
+                  "objects": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "box",
+                            "lShape",
+                            "tShape",
+                            "cylinder",
+                            "arc",
+                            "ellipse",
+                            "fan"
+                          ]
+                        },
+                        "params": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  },
+                  "envelope": {
+                    "type": "object",
+                    "properties": {
+                      "selected_wall": {
+                        "type": "string"
+                      },
+                      "selected_roof": {
+                        "type": "string"
+                      },
+                      "selected_shading": {
+                        "type": "string"
+                      },
+                      "selected_glazing": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "mep": {
+                    "type": "object",
+                    "properties": {
+                      "selected_hvac": {
+                        "type": "string"
+                      },
+                      "selected_lighting": {
+                        "type": "string"
+                      },
+                      "selected_elevator": {
+                        "type": "string"
+                      },
+                      "selected_dhw": {
+                        "type": "string"
+                      },
+                      "elevator_count": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "project": {
+                    "type": "object",
+                    "properties": {
+                      "selected_region": {
+                        "type": "string"
+                      },
+                      "selected_use_category": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview result with EEI, Grade, render params",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "preview": {
+                      "type": "object",
+                      "properties": {
+                        "metrics": {
+                          "type": "object",
+                          "description": "Wall/window/roof areas, ki, WWR"
+                        },
+                        "performance": {
+                          "type": "object",
+                          "properties": {
+                            "kpis": {
+                              "type": "object",
+                              "properties": {
+                                "eei": {
+                                  "type": "number"
+                                },
+                                "grade": {
+                                  "type": "string"
+                                },
+                                "score": {
+                                  "type": "number"
+                                },
+                                "esr": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "renderParams": {
+                          "type": "object",
+                          "description": "Objects with shadingType and glassType injected for ThreeDViewer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project not in DRAFT status"
+          },
+          "502": {
+            "description": "Python engine error"
+          },
+          "504": {
+            "description": "Python engine timeout"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/calculations": {
+      "get": {
+        "tags": [
+          "calc"
+        ],
+        "summary": "List calculation history for a project",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calculation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "calculations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Calculation"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "calc"
+        ],
+        "summary": "Record a calculation result",
+        "description": "Stores EEI, grade and full workspace snapshot. Grade must use BERS 7-level scale (1+, 1, 2, …, 7).",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "eui_result": {
+                    "type": "number"
+                  },
+                  "total_energy_kwh": {
+                    "type": "number"
+                  },
+                  "carbon_emission_kg": {
+                    "type": "number"
+                  },
+                  "green_building_grade": {
+                    "type": "string",
+                    "enum": [
+                      "1+",
+                      "1",
+                      "2",
+                      "3",
+                      "4",
+                      "5",
+                      "6",
+                      "7"
+                    ]
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Calculation created with full workspace snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "calculation": {
+                      "$ref": "#/components/schemas/Calculation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid grade (must be BERS 7-level, not GOLD/SILVER/BRONZE)"
+          }
+        }
+      }
+    },
+    "/api/projects/{projectId}/audit-log": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get project audit trail (all actions)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "CREATED",
+                              "UPDATED",
+                              "SUBMITTED",
+                              "APPROVED",
+                              "DELETED",
+                              "CALCULATED"
+                            ]
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "changedFields": {
+                            "type": "object"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/stats": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Aggregated dashboard statistics (scoped by role)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "totalProjects": {
+                          "type": "integer"
+                        },
+                        "byStatus": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "integer"
+                          }
+                        },
+                        "byGrade": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "integer"
+                          }
+                        },
+                        "totalFloorAreaM2": {
+                          "type": "number"
+                        },
+                        "averageEui": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "recentActivity": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "projectId": {
+                                "type": "string"
+                              },
+                              "projectName": {
+                                "type": "string"
+                              },
+                              "action": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List all users (SYS_ADMIN only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User list"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Create a user (SYS_ADMIN only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password",
+                  "role"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "SYS_ADMIN",
+                      "AGENCY_USER",
+                      "VENDOR_USER"
+                    ]
+                  },
+                  "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/users/{userId}/status": {
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Activate or deactivate a user (SYS_ADMIN only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "is_active"
+                ],
+                "properties": {
+                  "is_active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/lookup/config": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Full config lookup (all tables)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All lookup tables"
+          }
+        }
+      }
+    },
+    "/api/lookup/project": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Project-level lookups (regions, use categories)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project lookups"
+          }
+        }
+      }
+    },
+    "/api/lookup/envelope": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Envelope lookups (walls, roofs, shading, glazing)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Envelope lookups"
+          }
+        }
+      }
+    },
+    "/api/lookup/mep": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "MEP lookups (HVAC, lighting, elevator, DHW)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MEP lookups"
+          }
+        }
+      }
+    },
+    "/api/lookup/climate-regions": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Climate regions (Zone A–D, UR)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/use-categories": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Building use categories with AEUI/LEUI/EEUI/Es",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/wall-constructions": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Wall constructions with U-values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/roof-constructions": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Roof constructions with U-values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/glazing-types": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Glazing types with Ug and ηi",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/shading-types": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Shading types with Ki values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/hvac-systems": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "HVAC systems with EAC values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/lighting-systems": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Lighting systems with EL values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/elevator-types": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Elevator types with Et values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup/dhw-systems": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "DHW systems with EHW values",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

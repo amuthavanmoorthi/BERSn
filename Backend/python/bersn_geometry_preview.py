@@ -131,6 +131,31 @@ def _bucket_orientation(angle: float) -> str:
     return "west"
 
 
+def _angular_delta(a: float, b: float) -> float:
+    diff = abs((a % 360.0) - (b % 360.0))
+    return min(diff, 360.0 - diff)
+
+
+def _orientation_weights(angle: float) -> Dict[str, float]:
+    raw = {
+        "wallNorth": max(0.0, math.cos(math.radians(_angular_delta(angle, 0.0)))),
+        "wallEast": max(0.0, math.cos(math.radians(_angular_delta(angle, 90.0)))),
+        "wallSouth": max(0.0, math.cos(math.radians(_angular_delta(angle, 180.0)))),
+        "wallWest": max(0.0, math.cos(math.radians(_angular_delta(angle, 270.0)))),
+    }
+    total = sum(raw.values())
+    if total <= 0.0:
+        return {key: 0.25 for key in raw}
+    return {key: value / total for key, value in raw.items()}
+
+
+def _add_oriented_wall(walls: Dict[str, float], area: float, angle: float) -> None:
+    if area <= 0.0 or not math.isfinite(area):
+        return
+    for key, weight in _orientation_weights(angle).items():
+        walls[key] += area * weight
+
+
 def _distribute_equal(total_wall_area: float) -> Dict[str, float]:
     quarter = total_wall_area / 4.0
     return {
@@ -224,8 +249,7 @@ def _rectilinear_union_metrics(
             exposed_length = sum(end - start for start, end in exposed_parts)
             if exposed_length <= 0:
                 continue
-            bucket = _bucket_orientation(normal_angle + azimuth)
-            walls[f"wall{bucket.capitalize()}"] += exposed_length * height
+            _add_oriented_wall(walls, exposed_length * height, normal_angle + azimuth)
 
     wall_area = sum(walls.values())
     return walls, wall_area, _union_rect_area(rects)
@@ -254,8 +278,7 @@ def _box_metrics(params: Dict[str, Any]) -> Tuple[Dict[str, float], float, float
         (length * height, azimuth + 270.0),
     )
     for area, angle in side_configs:
-        bucket = _bucket_orientation(angle)
-        walls[f"wall{bucket.capitalize()}"] += area
+        _add_oriented_wall(walls, area, angle)
 
     return walls, 2.0 * (width + length) * height, width * length
 
@@ -271,16 +294,16 @@ def _shape_metrics(geometry_type: str, params: Dict[str, Any]) -> Tuple[Dict[str
         w1 = _positive(params, "w1", 20.0)
         l2 = _positive(params, "l2", 20.0)
         w2 = _positive(params, "w2", 15.0)
-        direction = -1.0 if str(params.get("lDirection") or "right") == "left" else 1.0
-        main = (-w1 / 2.0, w1 / 2.0, -l1 / 2.0, l1 / 2.0)
-        ext_center_x = direction * ((w1 / 2.0) + (w2 / 2.0))
-        ext_center_z = (l1 - l2) / 2.0
-        extension = (
-            ext_center_x - (w2 / 2.0),
-            ext_center_x + (w2 / 2.0),
-            ext_center_z - (l2 / 2.0),
-            ext_center_z + (l2 / 2.0),
-        )
+        raw_direction = str(params.get("lDirection") or "TopLeft")
+        direction = raw_direction.lower()
+        main = (-l1 / 2.0, l1 / 2.0, -w1 / 2.0, w1 / 2.0)
+        left = "left" in direction
+        top = "bottom" not in direction
+        ext_x0 = -l1 / 2.0 if left else l1 / 2.0 - l2
+        ext_x1 = ext_x0 + l2
+        ext_z0 = w1 / 2.0 if top else -w1 / 2.0 - w2
+        ext_z1 = ext_z0 + w2
+        extension = (ext_x0, ext_x1, ext_z0, ext_z1)
         return _rectilinear_union_metrics([main, extension], height, _num(params, "azimuth", 0.0))
 
     if geometry_type == "tShape":
@@ -288,14 +311,18 @@ def _shape_metrics(geometry_type: str, params: Dict[str, Any]) -> Tuple[Dict[str
         w1 = _positive(params, "w1", 15.0)
         l2 = _positive(params, "l2", 30.0)
         w2 = _positive(params, "w2", 20.0)
-        wing_position = str(params.get("wingPosition") or "center")
-        wing_center_z = 0.0
-        if wing_position == "left":
-            wing_center_z = (l1 / 2.0) - (w2 / 2.0)
+        wing_position = str(params.get("wingPosition") or "top").lower()
+        stem = (-l1 / 2.0, l1 / 2.0, -w1 / 2.0, w1 / 2.0)
+        if wing_position == "bottom":
+            wing = (-l2 / 2.0, l2 / 2.0, -w1 / 2.0 - w2, -w1 / 2.0)
+        elif wing_position == "left":
+            wing = (-l1 / 2.0 - w2, -l1 / 2.0, -l2 / 2.0, l2 / 2.0)
         elif wing_position == "right":
-            wing_center_z = (-l1 / 2.0) + (w2 / 2.0)
-        stem = (-w1 / 2.0, w1 / 2.0, -l1 / 2.0, l1 / 2.0)
-        wing = (-l2 / 2.0, l2 / 2.0, wing_center_z - (w2 / 2.0), wing_center_z + (w2 / 2.0))
+            wing = (l1 / 2.0, l1 / 2.0 + w2, -l2 / 2.0, l2 / 2.0)
+        elif wing_position == "center":
+            wing = (-l2 / 2.0, l2 / 2.0, -w2 / 2.0, w2 / 2.0)
+        else:
+            wing = (-l2 / 2.0, l2 / 2.0, w1 / 2.0, w1 / 2.0 + w2)
         return _rectilinear_union_metrics([stem, wing], height, _num(params, "azimuth", 0.0))
 
     if geometry_type == "cylinder":

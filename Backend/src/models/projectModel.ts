@@ -9,6 +9,7 @@ import type {
   ProjectRow,
   ProjectStatus,
   ProjectUserContext,
+  ProjectWorkflowHistoryRow,
 } from '../types/projects.js';
 
 interface ProjectInsertPayload {
@@ -393,6 +394,63 @@ export async function insertProjectAuditLog(
       payload.ip_address,
     ],
   );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Project workflow history (per status transition)
+// ──────────────────────────────────────────────────────────────────
+
+export interface ProjectWorkflowHistoryInsert {
+  project_id: string;
+  from_status: ProjectStatus | null;
+  to_status: ProjectStatus;
+  actor_user_id: string;
+  actor_role: string;
+  reason: string | null;
+  metadata: unknown;
+}
+
+export async function insertProjectWorkflowEvent(
+  client: PoolClient,
+  payload: ProjectWorkflowHistoryInsert,
+): Promise<ProjectWorkflowHistoryRow | null> {
+  const { rows } = await client.query<ProjectWorkflowHistoryRow>(
+    `INSERT INTO project_workflow_history
+      (project_id, from_status, to_status, actor_user_id, actor_role, reason, metadata)
+     VALUES
+      ($1, $2, $3, $4, $5, $6, $7::jsonb)
+     RETURNING id, project_id, from_status, to_status, actor_user_id, actor_role,
+               reason, metadata, created_at`,
+    [
+      payload.project_id,
+      payload.from_status,
+      payload.to_status,
+      payload.actor_user_id,
+      payload.actor_role,
+      payload.reason,
+      JSON.stringify(payload.metadata || {}),
+    ],
+  );
+  return rows[0] ?? null;
+}
+
+export async function listProjectWorkflowHistory(
+  client: PoolClient,
+  projectId: string,
+  limit = 200,
+): Promise<ProjectWorkflowHistoryRow[]> {
+  const { rows } = await client.query<ProjectWorkflowHistoryRow>(
+    `SELECT wh.id, wh.project_id, wh.from_status, wh.to_status,
+            wh.actor_user_id, wh.actor_role, wh.reason, wh.metadata, wh.created_at,
+            u.username AS actor_username
+       FROM project_workflow_history wh
+       LEFT JOIN users u ON u.id = wh.actor_user_id
+      WHERE wh.project_id = $1
+      ORDER BY wh.created_at ASC, wh.id ASC
+      LIMIT $2`,
+    [projectId, limit],
+  );
+  return rows;
 }
 
 // ──────────────────────────────────────────────────────────────────

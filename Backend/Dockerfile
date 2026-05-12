@@ -27,4 +27,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "node dist/scripts/runDbMigrations.js && node dist/scripts/bootstrapAdmin.js && node dist/server.js"]
+CMD ["sh", "-c", "node dist/scripts/runDbMigrations.js && node dist/scripts/bootstrapAdmin.js && node dist/scripts/seedRbacAccounts.js && node dist/server.js"]

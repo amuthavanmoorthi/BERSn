@@ -342,12 +342,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/CalculationResultResponse'
 
-  /projects/{projectId}/scenarios:
+  /optimization/measures:
     get:
       tags: [Scenarios]
-      summary: List scenarios
-      parameters:
-        - $ref: '#/components/parameters/ProjectId'
+      summary: List active energy saving measures
       responses:
         '200':
           description: OK
@@ -356,13 +354,32 @@ paths:
               schema:
                 type: object
                 properties:
-                  items:
+                  ok: { type: boolean }
+                  measures:
                     type: array
-                    items:
-                      $ref: '#/components/schemas/Scenario'
+                    items: { $ref: '#/components/schemas/Measure' }
+
+  /optimization/scenarios:
+    get:
+      tags: [Scenarios]
+      summary: List predefined design scenarios
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  scenarios:
+                    type: array
+                    items: { $ref: '#/components/schemas/Scenario' }
+
+  /projects/{projectId}/optimization/simulate:
     post:
       tags: [Scenarios]
-      summary: Create scenario
+      summary: Simulate measure or scenario impact
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -370,29 +387,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ScenarioCreateRequest'
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Scenario'
-
-  /projects/{projectId}/scenarios/{scenarioId}/simulate:
-    post:
-      tags: [Scenarios]
-      summary: Simulate selected measures and return result
-      parameters:
-        - $ref: '#/components/parameters/ProjectId'
-        - $ref: '#/components/parameters/ScenarioId'
+              type: object
+              required: [baseInput]
+              properties:
+                measureIds: { type: array, items: { type: string } }
+                scenarioId: { type: string }
+                baseInput: { type: object }
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ScenarioSimulationResponse'
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  result: { $ref: '#/components/schemas/SimulationResult' }
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/SimulationResult' }
 
   /reference/regions:
     get:
@@ -775,24 +788,25 @@ components:
           items:
             type: string
 
-    ScenarioSimulationResponse:
+    SimulationResult:
       type: object
       properties:
+        measureId:
+          type: string
+          nullable: true
         scenarioId:
           type: string
-          format: uuid
-        simulatedEEI:
+          nullable: true
+        deltaEEI:
           type: number
-        simulatedScore:
-          type: number
-        simulatedGrade:
-          type: string
-        totalCostTwd:
+        totalCost:
           type: number
         cpValue:
           type: number
+        newKPIs:
+          type: object
 
-    Measure:
+    Scenario:
       type: object
       properties:
         id:

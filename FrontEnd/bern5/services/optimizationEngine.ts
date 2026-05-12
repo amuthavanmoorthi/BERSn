@@ -70,6 +70,7 @@ export function simulateMeasure(baseline: ProjectBaseline, objects: GeometryObje
       deltaEEI: 0,
       deltaScore: 0,
       cost: 0,
+      totalCost: 0,
       cpValue: 0,
       isEligible: false,
       ineligibleReason: reason
@@ -90,6 +91,7 @@ export function simulateMeasure(baseline: ProjectBaseline, objects: GeometryObje
     deltaEEI,
     deltaScore,
     cost,
+    totalCost: cost,
     cpValue: cost > 0 ? (deltaEEI * 1000000) / cost : 0, // 縮放係數方便排序顯示
     isEligible: true
   };

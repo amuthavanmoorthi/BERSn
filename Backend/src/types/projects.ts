@@ -1,11 +1,58 @@
 import type { TimestampValue } from './auth.js';
 
-export type ProjectStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'ARCHIVED';
+export type ProjectStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REVISION_REQUESTED'
+  | 'COMPLETED'
+  | 'ARCHIVED';
 export type OrganizationType = 'GOVERNMENT' | 'VENDOR' | 'AGENCY';
 export type ProjectAuditAction =
-  | 'CREATED' | 'UPDATED' | 'SUBMITTED' | 'APPROVED' | 'DELETED' | 'CALCULATED'
-  | 'SHARED' | 'UNSHARED' | 'PERMISSION_CHANGED';
+  | 'CREATED'
+  | 'UPDATED'
+  | 'SUBMITTED'
+  | 'REVIEW_STARTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REVISION_REQUESTED'
+  | 'COMPLETED'
+  | 'REOPENED'
+  | 'ASSIGNED'
+  | 'DELETED'
+  | 'CALCULATED'
+  | 'SHARED'
+  | 'UNSHARED'
+  | 'PERMISSION_CHANGED';
 export type ProjectPermission = 'viewer' | 'editor' | 'admin';
+
+export interface ProjectWorkflowHistoryRow {
+  id: string;
+  project_id: string;
+  from_status: ProjectStatus | null;
+  to_status: ProjectStatus;
+  actor_user_id: string;
+  actor_role: string;
+  actor_username?: string | null;
+  reason: string | null;
+  metadata: unknown;
+  created_at: TimestampValue;
+}
+
+export interface ProjectWorkflowHistorySummary {
+  id: string;
+  projectId: string;
+  fromStatus: ProjectStatus | null;
+  toStatus: ProjectStatus;
+  actorUserId: string;
+  actorRole: string;
+  actorUsername: string | null;
+  reason: string | null;
+  metadata: unknown;
+  at: string;
+}
 
 export interface ProjectMemberRow {
   id: string;

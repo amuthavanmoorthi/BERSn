@@ -113,11 +113,44 @@ export const openapiSpec = {
           calculationVersion: { type: 'integer' },
           euiResult:          { type: 'number', nullable: true },
           totalEnergyKwh:     { type: 'number', nullable: true },
-          carbonEmissionKg:   { type: 'number', nullable: true },
+          carbon_emission_kg: { type: 'number', nullable: true },
           grade:              { type: 'string', enum: ['1+','1','2','3','4','5','6','7'], nullable: true },
           calculatedBy:       { type: 'string', format: 'uuid' },
           calculatedAt:       { type: 'string', format: 'date-time' },
           notes:              { type: 'string', nullable: true },
+        },
+      },
+      Measure: {
+        type: 'object',
+        properties: {
+          id:          { type: 'string' },
+          name:        { type: 'string' },
+          category:    { type: 'string' },
+          description: { type: 'string' },
+          eligibility: { type: 'object' },
+          patches:     { type: 'array', items: { type: 'object' } },
+          costModel:   { type: 'object' },
+          isActive:    { type: 'boolean' },
+        },
+      },
+      Scenario: {
+        type: 'object',
+        properties: {
+          id:         { type: 'string' },
+          name:       { type: 'string' },
+          measureIds: { type: 'array', items: { type: 'string' } },
+          createdBy:  { type: 'string', format: 'uuid', nullable: true },
+        },
+      },
+      SimulationResult: {
+        type: 'object',
+        properties: {
+          measureId:  { type: 'string', nullable: true },
+          scenarioId: { type: 'string', nullable: true },
+          deltaEEI:   { type: 'number' },
+          totalCost:  { type: 'number' },
+          cpValue:    { type: 'number' },
+          newKPIs:    { type: 'object' },
         },
       },
     },
@@ -143,6 +176,70 @@ export const openapiSpec = {
         responses: {
           200: { description: 'Ready', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, status: { type: 'string' }, checks: { type: 'object', properties: { database: { type: 'string' }, redis: { type: 'string' } } } } } } } },
           503: { description: 'Not ready yet' },
+        },
+      },
+    },
+
+    // ── Optimization ──────────────────────────────────────────────
+    '/api/measures': {
+      get: {
+        tags: ['optimization'],
+        summary: 'List active energy saving measures',
+        security: [cookieAuth],
+        responses: {
+          200: { description: 'Measure list', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, measures: { type: 'array', items: { $ref: '#/components/schemas/Measure' } } } } } } },
+        },
+      },
+    },
+    '/api/scenarios': {
+      get: {
+        tags: ['optimization'],
+        summary: 'List predefined design scenarios',
+        security: [cookieAuth],
+        responses: {
+          200: { description: 'Scenario list', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, scenarios: { type: 'array', items: { $ref: '#/components/schemas/Scenario' } } } } } } },
+        },
+      },
+    },
+    '/api/projects/{projectId}/simulate': {
+      post: {
+        tags: ['optimization'],
+        summary: 'Simulate measure or scenario impact',
+        description: 'Runs backend Python engine to calculate EEI reduction and cost for given measures/scenario.',
+        security: [cookieAuth],
+        parameters: [{ name: 'projectId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['baseInput'],
+                properties: {
+                  measureIds: { type: 'array', items: { type: 'string' } },
+                  scenarioId: { type: 'string' },
+                  baseInput:  { type: 'object', description: 'Current workspace state following ProjectGeometryPreviewInput' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Simulation results',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    ok: { type: 'boolean' },
+                    result: { $ref: '#/components/schemas/SimulationResult' },
+                    results: { type: 'array', items: { $ref: '#/components/schemas/SimulationResult' } },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },

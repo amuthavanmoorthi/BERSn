@@ -36,7 +36,7 @@ export interface ManagedUserSummary {
 }
 
 export interface ManagedUserInsertPayload {
-  created_by: string;
+  created_by: string | null;
   department: string | null;
   email: string;
   full_name: string;

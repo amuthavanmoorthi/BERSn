@@ -527,13 +527,16 @@ export function buildGeometryPreviewLookupContext(
   const lookups = getConfigLookups();
   const normalizedUseCategoryId = normalizeUseCategoryId(input.project.selected_use_category);
   const useCategory = pickById(lookups.project.useCategories, normalizedUseCategoryId, 'G2_OFFICE');
-  const region = pickById(lookups.project.climateRegions, input.project.selected_region, 'REGION_A');
+  const requestedRegion = pickById(lookups.project.climateRegions, input.project.selected_region, 'REGION_A');
+  const region = useCategory.urByRegion[requestedRegion.id] !== undefined
+    ? requestedRegion
+    : pickById(lookups.project.climateRegions, 'REGION_A', 'REGION_A');
   const totalFloorArea = typeof input.project.total_floor_area === 'number'
     ? input.project.total_floor_area
     : null;
   const areaBand = getAreaBand(totalFloorArea, lookups.project.areaBands);
   const esValue = selectEsValue(useCategory, totalFloorArea, lookups.project.areaBands);
-  const ur = useCategory.urByRegion[region.id] ?? 1;
+  const ur = useCategory.urByRegion[region.id] ?? useCategory.urByRegion.REGION_A ?? 1;
 
   return {
     envelope: {

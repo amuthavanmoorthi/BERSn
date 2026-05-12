@@ -51,6 +51,14 @@ export interface AuthenticatedUser {
 export interface AuthResult {
     must_change_password: boolean;
     user: AuthenticatedUser;
+    role?: string;
+    permissions?: string[];
+}
+
+export interface SessionContext {
+    user: AuthenticatedUser;
+    role: string;
+    permissions: string[];
 }
 
 async function parseApiResponse(response: Response): Promise<any> {
@@ -243,6 +251,11 @@ export async function registerPasskey(): Promise<void> {
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser> {
+    const session = await getCurrentSession();
+    return session.user;
+}
+
+export async function getCurrentSession(): Promise<SessionContext> {
     const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         method: 'GET',
         credentials: 'include',
@@ -256,7 +269,11 @@ export async function getCurrentUser(): Promise<AuthenticatedUser> {
         throw new Error('Not authenticated');
     }
     markAuthenticated();
-    return body.user;
+    return {
+        user: body.user as AuthenticatedUser,
+        role: String(body.role || body.user?.role || ''),
+        permissions: Array.isArray(body.permissions) ? body.permissions.map(String) : [],
+    };
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {

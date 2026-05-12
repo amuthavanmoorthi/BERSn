@@ -18,10 +18,12 @@ import {
   getUseCategories,
   getWallConstructions,
 } from '../controllers/lookupController.js';
+import { getMeasureLibrary } from '../controllers/optimizationController.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = Router();
 
+router.get('/reference/measures', requireAuth, getMeasureLibrary);
 router.get('/lookup/config', requireAuth, getFullConfigLookup);
 router.get('/lookup/project', requireAuth, getProjectConfigLookup);
 router.get('/lookup/envelope', requireAuth, getEnvelopeConfigLookup);

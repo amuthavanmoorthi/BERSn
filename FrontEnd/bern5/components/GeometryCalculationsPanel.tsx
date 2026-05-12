@@ -14,6 +14,90 @@ interface GeometryCalculationsProps {
     previewLoading?: boolean;
 }
 
+type DirectionalWalls = {
+    wallNorth: number;
+    wallSouth: number;
+    wallEast: number;
+    wallWest: number;
+};
+
+const emptyDirectionalWalls = (): DirectionalWalls => ({
+    wallNorth: 0,
+    wallSouth: 0,
+    wallEast: 0,
+    wallWest: 0,
+});
+
+const normalizeAngle = (angle: number) => ((angle % 360) + 360) % 360;
+
+const angularDelta = (a: number, b: number) => {
+    const diff = Math.abs(normalizeAngle(a) - normalizeAngle(b));
+    return Math.min(diff, 360 - diff);
+};
+
+const orientationWeights = (normalAngle: number): DirectionalWalls => {
+    const raw = {
+        wallNorth: Math.max(0, Math.cos(angularDelta(normalAngle, 0) * Math.PI / 180)),
+        wallEast: Math.max(0, Math.cos(angularDelta(normalAngle, 90) * Math.PI / 180)),
+        wallSouth: Math.max(0, Math.cos(angularDelta(normalAngle, 180) * Math.PI / 180)),
+        wallWest: Math.max(0, Math.cos(angularDelta(normalAngle, 270) * Math.PI / 180)),
+    };
+    const total = raw.wallNorth + raw.wallEast + raw.wallSouth + raw.wallWest;
+    if (total <= 0) {
+        return { wallNorth: 0.25, wallSouth: 0.25, wallEast: 0.25, wallWest: 0.25 };
+    }
+    return {
+        wallNorth: raw.wallNorth / total,
+        wallSouth: raw.wallSouth / total,
+        wallEast: raw.wallEast / total,
+        wallWest: raw.wallWest / total,
+    };
+};
+
+const addDirectionalWall = (walls: DirectionalWalls, area: number, normalAngle: number) => {
+    if (!Number.isFinite(area) || area <= 0) return;
+    const weights = orientationWeights(normalAngle);
+    walls.wallNorth += area * weights.wallNorth;
+    walls.wallSouth += area * weights.wallSouth;
+    walls.wallEast += area * weights.wallEast;
+    walls.wallWest += area * weights.wallWest;
+};
+
+const polygonArea = (points: Array<{ x: number; y: number }>) => {
+    let area = 0;
+    for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        area += points[i].x * points[j].y - points[j].x * points[i].y;
+    }
+    return Math.abs(area) / 2;
+};
+
+const addPolylineWalls = (
+    walls: DirectionalWalls,
+    points: Array<{ x: number; y: number }>,
+    height: number,
+    azimuth = 0,
+) => {
+    if (points.length < 2) return;
+    for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        const dx = points[j].x - points[i].x;
+        const dy = points[j].y - points[i].y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        if (length <= 0) continue;
+        const normalAngle = Math.atan2(dx, dy) * 180 / Math.PI + azimuth;
+        addDirectionalWall(walls, length * height, normalAngle);
+    }
+};
+
+const regularPolygonPoints = (sides: number, radius: number) => {
+    const count = Math.max(3, Math.round(sides));
+    return Array.from({ length: count }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / count;
+        return { x: radius * Math.sin(angle), y: radius * Math.cos(angle) };
+    });
+};
+
 // Calculate geometry metrics from 3D objects
 const calculateGeometryMetrics = (objects: GeometryObject[]) => {
     let totalWallNorth = 0, totalWallSouth = 0, totalWallEast = 0, totalWallWest = 0;
@@ -29,6 +113,8 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
 
         let objWallArea = 0;
         let objRoofArea = 0;
+        const directionalWalls = emptyDirectionalWalls();
+        const azimuth = Number(p.azimuth || 0);
 
         switch (obj.type) {
             case 'box': {
@@ -36,6 +122,10 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const length = p.length || 30;
                 objWallArea = (width + length) * 2 * height;
                 objRoofArea = width * length;
+                addDirectionalWall(directionalWalls, width * height, azimuth);
+                addDirectionalWall(directionalWalls, length * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, width * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, length * height, azimuth + 270);
                 break;
             }
             case 'lShape': {
@@ -44,6 +134,12 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const perimeter = 2 * (l1 + w1) + 2 * (l2 + w2) - 2 * Math.min(w1, w2);
                 objWallArea = perimeter * height;
                 objRoofArea = l1 * w1 + l2 * w2;
+                addDirectionalWall(directionalWalls, l1 * height, azimuth);
+                addDirectionalWall(directionalWalls, w1 * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, Math.max(0, l1 - l2) * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, w2 * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, l2 * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, (w1 + w2) * height, azimuth + 270);
                 break;
             }
             case 'tShape': {
@@ -52,12 +148,24 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const perimeter = 2 * (l1 + w1) + 2 * (l2 + w2) - 2 * Math.min(w1, l2);
                 objWallArea = perimeter * height;
                 objRoofArea = l1 * w1 + l2 * w2;
+                addDirectionalWall(directionalWalls, l2 * height, azimuth);
+                addDirectionalWall(directionalWalls, w2 * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, ((l2 - w1) / 2) * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, l1 * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, w1 * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, l1 * height, azimuth + 270);
+                addDirectionalWall(directionalWalls, ((l2 - w1) / 2) * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, w2 * height, azimuth + 270);
                 break;
             }
             case 'cylinder': {
                 const radius = p.radius || 15;
                 objWallArea = 2 * Math.PI * radius * height;
                 objRoofArea = Math.PI * radius * radius;
+                directionalWalls.wallNorth = objWallArea / 4;
+                directionalWalls.wallSouth = objWallArea / 4;
+                directionalWalls.wallEast = objWallArea / 4;
+                directionalWalls.wallWest = objWallArea / 4;
                 break;
             }
             case 'ellipse': {
@@ -66,6 +174,10 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const circumference = Math.PI * (3 * (majorR + minorR) - Math.sqrt((3 * majorR + minorR) * (majorR + 3 * minorR)));
                 objWallArea = circumference * height;
                 objRoofArea = Math.PI * majorR * minorR;
+                directionalWalls.wallNorth = objWallArea / 4;
+                directionalWalls.wallSouth = objWallArea / 4;
+                directionalWalls.wallEast = objWallArea / 4;
+                directionalWalls.wallWest = objWallArea / 4;
                 break;
             }
             case 'arc': {
@@ -77,6 +189,10 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const perimeter = outerR * arcAngle + innerR * arcAngle + 2 * depthVal;
                 objWallArea = perimeter * height;
                 objRoofArea = (arcAngle / 2) * (outerR * outerR - innerR * innerR);
+                directionalWalls.wallNorth = objWallArea / 4;
+                directionalWalls.wallSouth = objWallArea / 4;
+                directionalWalls.wallEast = objWallArea / 4;
+                directionalWalls.wallWest = objWallArea / 4;
                 break;
             }
             case 'fan': {
@@ -86,6 +202,10 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const perimeter = outerR * fanAngle + innerR * fanAngle + 2 * (outerR - innerR);
                 objWallArea = perimeter * height;
                 objRoofArea = (fanAngle / 2) * (outerR * outerR - innerR * innerR);
+                directionalWalls.wallNorth = objWallArea / 4;
+                directionalWalls.wallSouth = objWallArea / 4;
+                directionalWalls.wallEast = objWallArea / 4;
+                directionalWalls.wallWest = objWallArea / 4;
                 break;
             }
             case 'polygon': {
@@ -94,18 +214,13 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const sideLen = 2 * circumR * Math.sin(Math.PI / sides);
                 objWallArea = sides * sideLen * height;
                 objRoofArea = 0.5 * sides * circumR * circumR * Math.sin(2 * Math.PI / sides);
+                addPolylineWalls(directionalWalls, regularPolygonPoints(sides, circumR), height, azimuth);
                 break;
             }
             case 'polyline': {
                 const pts = p.points;
                 if (pts && pts.length >= 3) {
-                    // Shoelace formula for area
-                    let area = 0;
-                    for (let i = 0; i < pts.length; i++) {
-                        const j = (i + 1) % pts.length;
-                        area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
-                    }
-                    objRoofArea = Math.abs(area) / 2;
+                    objRoofArea = polygonArea(pts);
 
                     // Perimeter-based wall area
                     const extH = p.extrudeHeight || height;
@@ -117,6 +232,7 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                         perimeter += Math.sqrt(dx * dx + dy * dy);
                     }
                     objWallArea = perimeter * extH;
+                    addPolylineWalls(directionalWalls, pts, extH, azimuth);
                 } else {
                     objWallArea = 0;
                     objRoofArea = 0;
@@ -127,16 +243,32 @@ const calculateGeometryMetrics = (objects: GeometryObject[]) => {
                 const width = p.width || 40, length = p.length || 30;
                 objWallArea = (width + length) * 2 * height;
                 objRoofArea = width * length;
+                addDirectionalWall(directionalWalls, width * height, azimuth);
+                addDirectionalWall(directionalWalls, length * height, azimuth + 90);
+                addDirectionalWall(directionalWalls, width * height, azimuth + 180);
+                addDirectionalWall(directionalWalls, length * height, azimuth + 270);
             }
         }
 
-        // Distribute wall/window evenly to 4 orientations
-        const qW = objWallArea / 4;
-        const qWin = qW * wwr;
-        totalWallNorth += qW; totalWinNorth += qWin;
-        totalWallSouth += qW; totalWinSouth += qWin;
-        totalWallEast += qW; totalWinEast += qWin;
-        totalWallWest += qW; totalWinWest += qWin;
+        let directionalTotal = directionalWalls.wallNorth + directionalWalls.wallSouth + directionalWalls.wallEast + directionalWalls.wallWest;
+        if (directionalTotal > 0 && objWallArea > 0 && Math.abs(directionalTotal - objWallArea) > 0.001) {
+            const scale = objWallArea / directionalTotal;
+            directionalWalls.wallNorth *= scale;
+            directionalWalls.wallSouth *= scale;
+            directionalWalls.wallEast *= scale;
+            directionalWalls.wallWest *= scale;
+            directionalTotal = objWallArea;
+        }
+        const fallbackShare = objWallArea / 4;
+        const wallN = directionalTotal > 0 ? directionalWalls.wallNorth : fallbackShare;
+        const wallS = directionalTotal > 0 ? directionalWalls.wallSouth : fallbackShare;
+        const wallE = directionalTotal > 0 ? directionalWalls.wallEast : fallbackShare;
+        const wallW = directionalTotal > 0 ? directionalWalls.wallWest : fallbackShare;
+
+        totalWallNorth += wallN; totalWinNorth += wallN * wwr;
+        totalWallSouth += wallS; totalWinSouth += wallS * wwr;
+        totalWallEast  += wallE; totalWinEast  += wallE * wwr;
+        totalWallWest  += wallW; totalWinWest  += wallW * wwr;
 
         totalRoofArea += objRoofArea;
         totalWallArea += objWallArea;
@@ -175,7 +307,6 @@ const GeometryCalculationsPanel: React.FC<GeometryCalculationsProps> = ({
     floors,
     lang,
     selectedShading,
-    backendMetrics,
     isBackendPreview,
     previewError,
     previewLoading,
@@ -183,22 +314,6 @@ const GeometryCalculationsPanel: React.FC<GeometryCalculationsProps> = ({
     const t = lang === 'zh';
 
     const metrics = useMemo(() => {
-        if (isBackendPreview && backendMetrics) {
-            return {
-                wallNorth: backendMetrics.wallNorth,
-                wallSouth: backendMetrics.wallSouth,
-                wallEast: backendMetrics.wallEast,
-                wallWest: backendMetrics.wallWest,
-                winNorth: backendMetrics.winNorth,
-                winSouth: backendMetrics.winSouth,
-                winEast: backendMetrics.winEast,
-                winWest: backendMetrics.winWest,
-                totalWallArea: backendMetrics.totalWallArea,
-                totalWindowArea: backendMetrics.totalWindowArea,
-                roofArea: backendMetrics.roofArea,
-                wwr: backendMetrics.overallWwr,
-            };
-        }
         const m = calculateGeometryMetrics(objects);
         if (floors && floors.length > 0) {
             // Roof area: per-floor union (avoid double-counting overlaps)
@@ -223,7 +338,7 @@ const GeometryCalculationsPanel: React.FC<GeometryCalculationsProps> = ({
             };
         }
         return m;
-    }, [objects, floors, isBackendPreview, backendMetrics]);
+    }, [objects, floors]);
     const shadingCoverage = SHADING_COVERAGE[selectedShading] || 0;
 
     const formatArea = (value: number) => value.toFixed(1);

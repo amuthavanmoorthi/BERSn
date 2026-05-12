@@ -127,7 +127,8 @@ export interface MeasureImpact {
   measureId: string;
   deltaEEI: number;
   deltaScore: number;
-  cost: number;
+  cost?: number;      // Legacy
+  totalCost: number;
   cpValue: number;
   isEligible: boolean;
   ineligibleReason?: string;

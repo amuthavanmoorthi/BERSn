@@ -21,6 +21,28 @@ export interface GeometryPreviewMetrics {
   winWest: number;
 }
 
+export interface GeometryPreviewVariantSummary {
+  id: string;
+  ok: boolean;
+  error?: string;
+  kpis?: {
+    eei: number;
+    score: number;
+    scoreDisplay: number;
+    grade: string;
+    af: number;
+    afe: number;
+  };
+  metrics?: {
+    totalWallArea: number;
+    totalWindowArea: number;
+    roofArea: number;
+    overallWwr: number;
+    estimatedFloorArea: number;
+  };
+  gradeResult?: unknown;
+}
+
 export interface GeometryPreviewResult {
   envelope?: unknown;
   geometry?: unknown;
@@ -41,6 +63,10 @@ export interface GeometryPreviewResult {
   performance?: unknown;
   project?: unknown;
   renderParams: unknown;
+  /** Present only when payload included `simulationVariants`. */
+  simulations?: GeometryPreviewVariantSummary[];
+  /** Baseline summary in the same shape as variant simulations, populated alongside `simulations`. */
+  baseline?: Omit<GeometryPreviewVariantSummary, 'id' | 'ok' | 'error'>;
 }
 
 const PYTHON_TIMEOUT_MS = Number(process.env.BERSN_PYTHON_TIMEOUT_MS || 5000);
@@ -89,6 +115,8 @@ function parsePythonJson(stdout: string, requestId: string): GeometryPreviewResu
     performance: body.performance,
     project: body.project,
     renderParams: body.renderParams || {},
+    simulations: Array.isArray(body.simulations) ? body.simulations : undefined,
+    baseline: body.baseline,
   };
 }
 
