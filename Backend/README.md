@@ -1,6 +1,6 @@
 # BERSn Backend Auth API
 
-Secure authentication API for `FrontEnd/bern3`.
+Secure authentication and project API for `FrontEnd/bern5`.
 
 ## Docker
 

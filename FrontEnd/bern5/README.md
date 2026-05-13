@@ -7,7 +7,7 @@
 ## 🚀 快速開始
 
 ```bash
-cd bern02
+cd FrontEnd/bern5
 npm install
 npm run dev
 ```
@@ -17,7 +17,7 @@ npm run dev
 ## 📁 專案結構
 
 ```
-bern02/
+FrontEnd/bern5/
 ├── App.tsx                 # 主應用程式
 ├── components/
 │   ├── CalculationBreakdownPanel.tsx  # 9步計算過程面板 ⭐

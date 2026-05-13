@@ -220,16 +220,16 @@ describe('GET /api/dashboard/stats', () => {
 });
 
 describe('PATCH /api/projects/:id/status', () => {
-  it('transitions project to IN_REVIEW', async () => {
+  it('transitions project to UNDER_REVIEW', async () => {
     const res = await fetch(`${BASE}/api/projects/${createdProjectId}/status`, {
       method: 'PATCH',
       headers: { ...HEADERS, cookie },
-      body: JSON.stringify({ status: 'IN_REVIEW' }),
+      body: JSON.stringify({ status: 'UNDER_REVIEW' }),
     });
     expect(res.status).toBe(200);
     const body = await res.json() as { ok: boolean; project: { status: string } };
     expect(body.ok).toBe(true);
-    expect(body.project.status).toBe('IN_REVIEW');
+    expect(body.project.status).toBe('UNDER_REVIEW');
   });
 });
 

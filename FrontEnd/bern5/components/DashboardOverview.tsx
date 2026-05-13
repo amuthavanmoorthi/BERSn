@@ -96,7 +96,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
     // Use backend data when available, else demo
     const totalProjects = backendStats?.totalProjects ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.projects, 0);
-    const totalInProgress = backendStats?.byStatus?.IN_REVIEW ?? backendStats?.byStatus?.DRAFT ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.inProgress, 0);
+    const totalInProgress = backendStats?.byStatus?.UNDER_REVIEW ?? backendStats?.byStatus?.SUBMITTED ?? backendStats?.byStatus?.DRAFT ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.inProgress, 0);
     const totalCompleted = backendStats?.byStatus?.APPROVED ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.completed, 0);
     const totalArea = backendStats ? Math.round(backendStats.totalFloorAreaM2 / 10000) / 100 : 967.0;
 

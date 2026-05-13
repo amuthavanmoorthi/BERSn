@@ -139,8 +139,12 @@
             "type": "string",
             "enum": [
               "DRAFT",
-              "IN_REVIEW",
+              "SUBMITTED",
+              "UNDER_REVIEW",
               "APPROVED",
+              "REJECTED",
+              "REVISION_REQUESTED",
+              "COMPLETED",
               "ARCHIVED"
             ]
           },
@@ -1300,8 +1304,12 @@
                     "type": "string",
                     "enum": [
                       "DRAFT",
-                      "IN_REVIEW",
+                      "SUBMITTED",
+                      "UNDER_REVIEW",
                       "APPROVED",
+                      "REJECTED",
+                      "REVISION_REQUESTED",
+                      "COMPLETED",
                       "ARCHIVED"
                     ]
                   }
