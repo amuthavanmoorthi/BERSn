@@ -70,7 +70,7 @@ export const openapiSpec = {
           organization:     { type: 'string' },
           organizationId:   { type: 'string', format: 'uuid', nullable: true },
           location:         { type: 'string', nullable: true },
-          status:           { type: 'string', enum: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'REVISION_REQUESTED', 'COMPLETED', 'ARCHIVED'] },
+          status:           { type: 'string', enum: ['DRAFT', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] },
           buildingType: {
             type: 'object',
             properties: {
@@ -512,7 +512,7 @@ export const openapiSpec = {
         parameters: [{ name: 'projectId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['DRAFT','SUBMITTED','UNDER_REVIEW','APPROVED','REJECTED','REVISION_REQUESTED','COMPLETED','ARCHIVED'] } } } } },
+          content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['DRAFT','IN_REVIEW','APPROVED','ARCHIVED'] } } } } },
         },
         responses: { 200: { description: 'Status updated' } },
       },
@@ -674,7 +674,7 @@ export const openapiSpec = {
                   type: 'object',
                   properties: {
                     ok: { type: 'boolean' },
-                    logs: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, action: { type: 'string', enum: ['CREATED','UPDATED','SUBMITTED','REVIEW_STARTED','APPROVED','REJECTED','REVISION_REQUESTED','COMPLETED','REOPENED','ASSIGNED','DELETED','CALCULATED','SHARED','UNSHARED','PERMISSION_CHANGED'] }, username: { type: 'string' }, changedFields: { type: 'object' }, at: { type: 'string', format: 'date-time' } } } },
+                    logs: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, action: { type: 'string', enum: ['CREATED','UPDATED','SUBMITTED','APPROVED','DELETED','CALCULATED'] }, username: { type: 'string' }, changedFields: { type: 'object' }, at: { type: 'string', format: 'date-time' } } } },
                   },
                 },
               },

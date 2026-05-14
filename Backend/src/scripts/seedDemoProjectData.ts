@@ -6,15 +6,7 @@ import { hashPassword } from '../services/authCrypto.js';
 
 type OrganizationType = 'GOVERNMENT' | 'VENDOR' | 'AGENCY';
 type UserRole = 'SYS_ADMIN' | 'AGENCY_USER' | 'VENDOR_USER';
-type ProjectStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'UNDER_REVIEW'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'REVISION_REQUESTED'
-  | 'COMPLETED'
-  | 'ARCHIVED';
+type ProjectStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'ARCHIVED';
 
 interface OrganizationSeed {
   id: string;
@@ -137,7 +129,7 @@ const projects: ProjectSeed[] = [
     location: 'Taoyuan District, Taoyuan City',
     buildingTypeCode: 'OFFICE',
     totalFloorArea: 12500.5,
-    status: 'UNDER_REVIEW',
+    status: 'IN_REVIEW',
     createdByEmail: 'agency.reviewer@bersn.local',
     calculatedByEmail: 'agency.reviewer@bersn.local',
     euiResult: 172.35,
@@ -165,7 +157,7 @@ const projects: ProjectSeed[] = [
     location: 'Luzhu District, Taoyuan City',
     buildingTypeCode: 'HOTEL',
     totalFloorArea: 6200.75,
-    status: 'UNDER_REVIEW',
+    status: 'IN_REVIEW',
     createdByEmail: 'agency.engineer@bersn.local',
     calculatedByEmail: 'agency.engineer@bersn.local',
     euiResult: 190.75,
@@ -511,13 +503,13 @@ async function insertProjectAuditLogs(
     },
   ];
 
-  if (seed.status === 'UNDER_REVIEW' || seed.status === 'APPROVED') {
+  if (seed.status === 'IN_REVIEW' || seed.status === 'APPROVED') {
     auditRows.push({
       suffix: 'submitted',
       action: 'SUBMITTED',
       userId: actorId,
       createdAt: new Date(seed.createdAt.getTime() + 30 * 60 * 1000),
-      changedFields: { status: { from: 'DRAFT', to: 'UNDER_REVIEW' } },
+      changedFields: { status: { from: 'DRAFT', to: 'IN_REVIEW' } },
     });
   }
 
@@ -538,7 +530,7 @@ async function insertProjectAuditLogs(
       action: 'APPROVED',
       userId: adminId,
       createdAt: new Date(seed.createdAt.getTime() + 90 * 60 * 1000),
-      changedFields: { status: { from: 'UNDER_REVIEW', to: 'APPROVED' } },
+      changedFields: { status: { from: 'IN_REVIEW', to: 'APPROVED' } },
     });
   }
 
