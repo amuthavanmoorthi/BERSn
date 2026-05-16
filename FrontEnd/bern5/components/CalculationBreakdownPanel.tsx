@@ -115,7 +115,6 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         eac: '空調節能效率 EAC',
         el: '照明節能效率 EL',
         et: '電梯節能效率 Et',
-        mepParams: '機電參數',
         hvacTerm: '空調項 a(EAC−EEV×Es)',
         lightingTerm: '照明項 bEL',
         elevatorTerm: '電梯項 cEt',
@@ -130,8 +129,7 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         euiM: '合格基準 EUI-m',
         euiMax: '最大基準 EUI-max',
         scoreUnit: '分',
-        ready: '就緒',
-        notReady: '尚未提供',
+        mepComposite: '機電加權合計 a·EAC + b·EL + c·Et',
     } : {
         title: 'Calculation Breakdown',
         subtitle: '9-Step Process',
@@ -161,7 +159,6 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         eac: 'HVAC Efficiency EAC',
         el: 'Lighting Efficiency EL',
         et: 'Elevator Efficiency Et',
-        mepParams: 'MEP Parameters',
         hvacTerm: 'HVAC Term a(EAC−EEV×Es)',
         lightingTerm: 'Lighting Term bEL',
         elevatorTerm: 'Elevator Term cEt',
@@ -176,8 +173,7 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         euiM: 'Median Baseline EUI-m',
         euiMax: 'Maximum Baseline EUI-max',
         scoreUnit: 'pts',
-        ready: 'Ready',
-        notReady: 'Not yet available',
+        mepComposite: 'Weighted MEP a·EAC + b·EL + c·Et',
     };
 
     const af = kpis.af;
@@ -207,11 +203,17 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
     const euiMax = kpis.euiMax;
 
     // The MEP step is considered ready only when every MEP coefficient
-    // has been provided by the backend. Anything else falls back to a
-    // neutral "not yet available" label rather than an invented value.
-    const mepReady = typeof eac === 'number' && typeof el === 'number' && typeof et === 'number';
+    // has been provided by the backend. When all three coefficients
+    // AND the a/b/c weights are present we surface the *weighted MEP
+    // composite* (a·EAC + b·EL + c·Et) as a real numeric result — it
+    // is the pre-envelope half of the EEI formula (Eq. 3.6) and lets
+    // the user see how the MEP inputs roll up into step 5.
+    const mepCoefficientsReady = typeof eac === 'number' && typeof el === 'number' && typeof et === 'number';
     const weightsReady = typeof weightA === 'number' && typeof weightB === 'number' && typeof weightC === 'number';
     const weightsSum = weightsReady ? (weightA! + weightB! + weightC!) : null;
+    const mepWeightedComposite = (mepCoefficientsReady && weightsReady)
+        ? (weightA! * eac! + weightB! * el! + weightC! * et!)
+        : null;
 
     const isHighEfficiencyFormula = typeof eei === 'number' && eei <= 0.8;
     const scoreFormula = typeof eei !== 'number'
@@ -260,14 +262,18 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         {
             id: 'mep',
             title: `4. ${t.mep}`,
-            formula: 'EAC, EL, Et — backend MEP solver',
+            // Pre-envelope half of EEI = a·EAC + b·EL + c·Et. The full
+            // EEI (step 5) then subtracts a·EEV·Es to credit the
+            // envelope. Showing the composite here gives the user a
+            // real intermediate number rather than a "Ready" badge.
+            formula: 'a·EAC + b·EL + c·Et',
             inputs: [
                 { label: t.eac, value: formatNumber(eac) },
                 { label: t.el, value: formatNumber(el) },
                 { label: t.et, value: formatNumber(et) },
             ],
-            result: { label: t.mepParams, value: mepReady ? t.ready : t.notReady },
-            status: mepReady ? 'complete' : 'error',
+            result: { label: t.mepComposite, value: formatNumber(mepWeightedComposite, 4) },
+            status: mepWeightedComposite !== null ? 'complete' : 'error',
         },
         {
             id: 'eei',
