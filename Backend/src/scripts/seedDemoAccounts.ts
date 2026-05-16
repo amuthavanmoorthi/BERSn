@@ -1,11 +1,11 @@
 /**
- * Provisions three short-credential demo accounts for client hand-off.
+ * Provisions three demo accounts for client hand-off.
  *
- *   username | password | role
- *   ---------+----------+--------------
- *   admin    |  1234    |  SYS_ADMIN
- *   vendor   |  1234    |  VENDOR_USER
- *   agency   |  1234    |  AGENCY_USER
+ *   username | password         | role
+ *   ---------+------------------+--------------
+ *   admin    |  Bersn@Demo2026! |  SYS_ADMIN
+ *   vendor   |  Bersn@Demo2026! |  VENDOR_USER
+ *   agency   |  Bersn@Demo2026! |  AGENCY_USER
  *
  * Existing canonical seed users (amuthavanmmoorthi@gmail.com,
  * amudhavanm17@gmail.com, amudhavan.episode@gmail.com — see
@@ -15,12 +15,12 @@
  *   * Username lookup is case-insensitive on login (`WHERE lower(username) = lower($1)`),
  *     so the client can type "Admin" / "Vendor" / "Agency" and still
  *     hit the corresponding lowercase row created here.
- *   * "1234" deliberately bypasses the production password-policy
- *     check — these accounts are for demonstration only. Disable them
- *     before shipping to a real production tenant.
- *   * The script uses direct argon2 hashing + INSERT/UPDATE so it does
- *     not go through the admin-create API path (which would reject
- *     the short password).
+ *   * The shared password satisfies the production policy (≥12 chars,
+ *     mixed case, digit, symbol) and does NOT contain any of the
+ *     three demo usernames, so it would survive the strength check
+ *     if these accounts were ever re-created via the admin API.
+ *   * The script uses direct argon2 hashing + INSERT/UPDATE so it
+ *     stays decoupled from the admin-create flow.
  *
  * Run with:
  *   DB_HOST=… DB_PORT=… DB_NAME=… DB_USER=… DB_PASSWORD=… \
@@ -44,7 +44,7 @@ interface DemoAccount {
   position: string;
 }
 
-const DEMO_PASSWORD = '1234';
+const DEMO_PASSWORD = 'Bersn@Demo2026!';
 
 const ACCOUNTS: DemoAccount[] = [
   {
