@@ -1,40 +1,137 @@
 import React from 'react';
 
+/**
+ * Strongly-typed shape of the KPI object the calculation breakdown reads.
+ *
+ * EVERY field here is sourced from the Python `_calculate_performance`
+ * output (see Backend/python/bersn_geometry_preview.py) via the
+ * `displayKpis` memo in App.tsx — there is no hard-coded fallback in
+ * this component. Missing values render as an em-dash placeholder so
+ * the user can immediately tell which inputs the backend has not
+ * supplied yet.
+ */
+export interface BreakdownKpis {
+    af?: number;
+    afe?: number;
+    exemptTotal?: number;
+    eei?: number;
+    esr?: number;
+    score?: number;
+    grade?: string;
+    euiG?: number;
+    euiM?: number;
+    euiMax?: number;
+    euiN?: number;
+    weights?: {
+        a?: number;
+        b?: number;
+        c?: number;
+        d?: number;
+    };
+    mepResults?: {
+        aeui?: number;
+        leui?: number;
+        eeui?: number;
+        eac?: number;
+        el?: number;
+        et?: number;
+        es?: number;
+        etEui?: number;
+    };
+    eevCalculation?: {
+        calculatedEEV?: number;
+        wallU?: number;
+        glassU?: number;
+        eta?: number;
+        shadingKi?: number;
+    };
+    breakdown?: {
+        hvac?: number;
+        lighting?: number;
+        elevator?: number;
+        dhw?: number;
+    };
+}
+
 interface CalcStep {
     id: string;
     title: string;
     formula: string;
-    inputs: { label: string; value: string | number; unit?: string }[];
-    result: { label: string; value: number | string; unit?: string };
+    inputs: { label: string; value: string; unit?: string }[];
+    result: { label: string; value: string; unit?: string };
     status: 'complete' | 'warning' | 'error';
     note?: string;
 }
 
 interface CalculationBreakdownPanelProps {
-    kpis: any;
+    kpis: BreakdownKpis;
     lang: 'zh' | 'en';
+}
+
+const MISSING = '—';
+
+/** Format a numeric value for display, or fall back to "—" when absent. */
+function formatNumber(value: number | null | undefined, fractionDigits = 3): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return MISSING;
+    return value.toLocaleString(undefined, {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+    });
+}
+
+/** Like {@link formatNumber} but with a fixed digit-count for compact area/EUI values. */
+function formatInteger(value: number | null | undefined): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return MISSING;
+    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
 const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ kpis, lang }) => {
     const t = lang === 'zh' ? {
         title: '計算過程詳解',
-        subtitle: 'Calculation Breakdown',
+        subtitle: '9-Step Process',
         step1: '有效冷房面積',
         step2: '外殼效率',
         step3: '權重係數',
         step4: '能效指標',
         step5: '能效得分',
         step6: '能效等級',
-        formula: '公式',
-        result: '結果',
         af: '總樓地板面積',
         exempt: '免計面積',
         afe: '有效面積',
-        eev: 'EEV值',
+        eev: '外殼節能效率 EEV',
         weights: '權重',
-        eei: 'EEI',
-        score: '得分',
+        eei: '能效指標 EEI',
+        score: '能效得分 SCOREee',
         grade: '等級',
+        wallU: '外牆熱傳 U',
+        glassU: '玻璃熱傳 Ug',
+        eta: '日射透過 ηi',
+        shadingKi: '外遮陽係數 Ki',
+        weightA: '空調權重 a（AEUI）',
+        weightB: '照明權重 b（LEUI）',
+        weightC: '電梯權重 c（EtEUI）',
+        sumLabel: '總和 Σ',
+        mep: '機電效率（EAC、EL、Et）',
+        eac: '空調節能效率 EAC',
+        el: '照明節能效率 EL',
+        et: '電梯節能效率 Et',
+        mepParams: '機電參數',
+        hvacTerm: '空調項 a(EAC−EEV×Es)',
+        lightingTerm: '照明項 bEL',
+        elevatorTerm: '電梯項 cEt',
+        formulaTypeLabel: '公式類型',
+        formulaHigh: '高效型',
+        formulaNormal: '一般型',
+        esr: '節能率 (ESR)',
+        esrResult: '節能率 ESR',
+        euiTitle: 'EUI 基準尺標',
+        euiN: '近零碳基準 EUI-n',
+        euiG: '優良基準 EUI-g',
+        euiM: '合格基準 EUI-m',
+        euiMax: '最大基準 EUI-max',
+        scoreUnit: '分',
+        ready: '就緒',
+        notReady: '尚未提供',
     } : {
         title: 'Calculation Breakdown',
         subtitle: '9-Step Process',
@@ -44,17 +141,84 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         step4: 'Energy Index',
         step5: 'Energy Score',
         step6: 'Energy Grade',
-        formula: 'Formula',
-        result: 'Result',
         af: 'Total Floor Area',
         exempt: 'Exempt Area',
         afe: 'Effective Area',
-        eev: 'EEV',
+        eev: 'Envelope Efficiency EEV',
         weights: 'Weights',
-        eei: 'EEI',
-        score: 'Score',
+        eei: 'Energy Efficiency Index EEI',
+        score: 'Energy Score SCOREee',
         grade: 'Grade',
+        wallU: 'Wall Thermal U',
+        glassU: 'Glass U Ug',
+        eta: 'Solar Transmittance ηi',
+        shadingKi: 'External Shading Coefficient Ki',
+        weightA: 'HVAC Weight a (AEUI)',
+        weightB: 'Lighting Weight b (LEUI)',
+        weightC: 'Elevator Weight c (EtEUI)',
+        sumLabel: 'Σ',
+        mep: 'MEP Efficiency (EAC, EL, Et)',
+        eac: 'HVAC Efficiency EAC',
+        el: 'Lighting Efficiency EL',
+        et: 'Elevator Efficiency Et',
+        mepParams: 'MEP Parameters',
+        hvacTerm: 'HVAC Term a(EAC−EEV×Es)',
+        lightingTerm: 'Lighting Term bEL',
+        elevatorTerm: 'Elevator Term cEt',
+        formulaTypeLabel: 'Formula',
+        formulaHigh: 'High-efficiency',
+        formulaNormal: 'Standard',
+        esr: 'Energy Saving Rate (ESR)',
+        esrResult: 'Energy Saving Rate ESR',
+        euiTitle: 'EUI Baseline Scale',
+        euiN: 'Near-Zero Baseline EUI-n',
+        euiG: 'Good Baseline EUI-g',
+        euiM: 'Median Baseline EUI-m',
+        euiMax: 'Maximum Baseline EUI-max',
+        scoreUnit: 'pts',
+        ready: 'Ready',
+        notReady: 'Not yet available',
     };
+
+    const af = kpis.af;
+    const afe = kpis.afe;
+    const exempt = kpis.exemptTotal;
+    const eev = kpis.eevCalculation?.calculatedEEV;
+    const wallU = kpis.eevCalculation?.wallU;
+    const glassU = kpis.eevCalculation?.glassU;
+    const eta = kpis.eevCalculation?.eta;
+    const shadingKi = kpis.eevCalculation?.shadingKi;
+    const weightA = kpis.weights?.a;
+    const weightB = kpis.weights?.b;
+    const weightC = kpis.weights?.c;
+    const eac = kpis.mepResults?.eac;
+    const el = kpis.mepResults?.el;
+    const et = kpis.mepResults?.et;
+    const hvacTerm = kpis.breakdown?.hvac;
+    const lightingTerm = kpis.breakdown?.lighting;
+    const elevatorTerm = kpis.breakdown?.elevator;
+    const eei = kpis.eei;
+    const esr = kpis.esr;
+    const score = kpis.score;
+    const grade = kpis.grade;
+    const euiN = kpis.euiN;
+    const euiG = kpis.euiG;
+    const euiM = kpis.euiM;
+    const euiMax = kpis.euiMax;
+
+    // The MEP step is considered ready only when every MEP coefficient
+    // has been provided by the backend. Anything else falls back to a
+    // neutral "not yet available" label rather than an invented value.
+    const mepReady = typeof eac === 'number' && typeof el === 'number' && typeof et === 'number';
+    const weightsReady = typeof weightA === 'number' && typeof weightB === 'number' && typeof weightC === 'number';
+    const weightsSum = weightsReady ? (weightA! + weightB! + weightC!) : null;
+
+    const isHighEfficiencyFormula = typeof eei === 'number' && eei <= 0.8;
+    const scoreFormula = typeof eei !== 'number'
+        ? '—'
+        : isHighEfficiencyFormula
+            ? 'SCOREee = 50 + 40×(0.8−EEI)/0.3'
+            : 'SCOREee = 50×(2.0−EEI)/1.2';
 
     const steps: CalcStep[] = [
         {
@@ -62,73 +226,73 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
             title: `1. ${t.step1} (AFe)`,
             formula: 'AFe = AF − ΣAfk',
             inputs: [
-                { label: `${t.af} (AF)`, value: kpis.af?.toLocaleString() || '5,000', unit: 'm²' },
-                { label: `${t.exempt} (ΣAfk)`, value: kpis.exemptTotal?.toLocaleString() || '1,000', unit: 'm²' },
+                { label: `${t.af} (AF)`, value: formatInteger(af), unit: 'm²' },
+                { label: `${t.exempt} (ΣAfk)`, value: formatInteger(exempt), unit: 'm²' },
             ],
-            result: { label: `${t.afe} (AFe)`, value: kpis.afe, unit: 'm²' },
-            status: kpis.afe > 0 ? 'complete' : 'error',
+            result: { label: `${t.afe} (AFe)`, value: formatInteger(afe), unit: 'm²' },
+            status: typeof afe === 'number' && afe > 0 ? 'complete' : 'error',
         },
         {
             id: 'eev',
             title: `2. ${t.step2} (EEV)`,
             formula: 'EEV = Σ(U×A×η×Ki) / ΣA',
             inputs: [
-                { label: lang === 'zh' ? '外牆熱傳 U' : 'Wall Thermal U', value: '1.8', unit: 'W/m²K' },
-                { label: lang === 'zh' ? '玻璃熱傳 Ug' : 'Glass U Ug', value: kpis.glassU?.toFixed(1) || '2.8', unit: 'W/m²K' },
-                { label: lang === 'zh' ? '日射透過 ηi' : 'Solar Transmittance ηi', value: kpis.eta?.toFixed(2) || '0.70' },
-                { label: lang === 'zh' ? '外遮陽係數 Ki' : 'External Shading Coefficient Ki', value: kpis.shadingKi?.toFixed(2) || '1.00' },
+                { label: t.wallU, value: formatNumber(wallU, 2), unit: 'W/m²K' },
+                { label: t.glassU, value: formatNumber(glassU, 2), unit: 'W/m²K' },
+                { label: t.eta, value: formatNumber(eta, 2) },
+                { label: t.shadingKi, value: formatNumber(shadingKi, 2) },
             ],
-            result: { label: lang === 'zh' ? '外殼節能效率 EEV' : 'Envelope Efficiency EEV', value: kpis.eev?.toFixed(3) || '1.000', unit: '' },
-            status: kpis.eev < 1.5 ? 'complete' : 'warning',
+            result: { label: t.eev, value: formatNumber(eev) },
+            status: typeof eev === 'number' && eev < 1.5 ? 'complete' : (typeof eev === 'number' ? 'warning' : 'error'),
         },
         {
             id: 'weights',
             title: `3. ${t.step3} (a,b,c)`,
             formula: 'a=AEUI/Σ, b=LEUI/Σ, c=EtEUI/Σ',
             inputs: [
-                { label: lang === 'zh' ? '空調權重 a（AEUI）' : 'HVAC Weight a (AEUI)', value: kpis.weights?.a?.toFixed(3) || '0.789' },
-                { label: lang === 'zh' ? '照明權重 b（LEUI）' : 'Lighting Weight b (LEUI)', value: kpis.weights?.b?.toFixed(3) || '0.184' },
-                { label: lang === 'zh' ? '電梯權重 c（EtEUI）' : 'Elevator Weight c (EtEUI)', value: kpis.weights?.c?.toFixed(3) || '0.026' },
+                { label: t.weightA, value: formatNumber(weightA) },
+                { label: t.weightB, value: formatNumber(weightB) },
+                { label: t.weightC, value: formatNumber(weightC) },
             ],
-            result: { label: 'Σ', value: '1.000', unit: '' },
-            status: 'complete',
+            result: { label: t.sumLabel, value: formatNumber(weightsSum) },
+            status: weightsReady ? 'complete' : 'error',
         },
         {
             id: 'mep',
-            title: lang === 'zh' ? '4. 機電效率（EAC、EL、Et）' : '4. MEP Efficiency (EAC, EL, Et)',
-            formula: 'EAC = f(COP, η_aux)',
+            title: `4. ${t.mep}`,
+            formula: 'EAC, EL, Et — backend MEP solver',
             inputs: [
-                { label: lang === 'zh' ? '空調節能效率 EAC' : 'HVAC Efficiency EAC', value: kpis.mepResults?.eac?.toFixed(3) || '0.850' },
-                { label: lang === 'zh' ? '照明節能效率 EL' : 'Lighting Efficiency EL', value: kpis.mepResults?.el?.toFixed(3) || '0.900' },
-                { label: lang === 'zh' ? '電梯節能效率 Et' : 'Elevator Efficiency Et', value: kpis.mepResults?.et?.toFixed(3) || '0.600' },
+                { label: t.eac, value: formatNumber(eac) },
+                { label: t.el, value: formatNumber(el) },
+                { label: t.et, value: formatNumber(et) },
             ],
-            result: { label: lang === 'zh' ? '機電參數' : 'MEP Parameters', value: 'Ready', unit: '' },
-            status: 'complete',
+            result: { label: t.mepParams, value: mepReady ? t.ready : t.notReady },
+            status: mepReady ? 'complete' : 'error',
         },
         {
             id: 'eei',
             title: `5. ${t.step4} (EEI)`,
             formula: 'EEI = a(EAC−EEV×Es) + bEL + cEt',
             inputs: [
-                { label: lang === 'zh' ? '空調項 a(EAC−EEV×Es)' : 'HVAC Term a(EAC−EEV×Es)', value: kpis.breakdown?.hvac?.toFixed(4) || '0.000' },
-                { label: lang === 'zh' ? '照明項 bEL' : 'Lighting Term bEL', value: kpis.breakdown?.lighting?.toFixed(4) || '0.000' },
-                { label: lang === 'zh' ? '電梯項 cEt' : 'Elevator Term cEt', value: kpis.breakdown?.elevator?.toFixed(4) || '0.000' },
+                { label: t.hvacTerm, value: formatNumber(hvacTerm, 4) },
+                { label: t.lightingTerm, value: formatNumber(lightingTerm, 4) },
+                { label: t.elevatorTerm, value: formatNumber(elevatorTerm, 4) },
             ],
-            result: { label: lang === 'zh' ? '能效指標 EEI' : 'Energy Efficiency Index EEI', value: kpis.eei, unit: '' },
-            status: kpis.eei <= 0.8 ? 'complete' : kpis.eei <= 1.0 ? 'warning' : 'error',
+            result: { label: t.eei, value: formatNumber(eei) },
+            status: typeof eei === 'number'
+                ? (eei <= 0.8 ? 'complete' : eei <= 1.0 ? 'warning' : 'error')
+                : 'error',
         },
         {
             id: 'score',
             title: `6. ${t.step5} (SCOREee)`,
-            formula: kpis.eei <= 0.8
-                ? 'SCOREee = 50 + 40×(0.8−EEI)/0.3'
-                : 'SCOREee = 50×(2.0−EEI)/1.2',
+            formula: scoreFormula,
             inputs: [
-                { label: lang === 'zh' ? '能效指標 EEI' : 'Energy Efficiency Index EEI', value: kpis.eei?.toFixed(3) || '0.000' },
-                { label: lang === 'zh' ? '公式類型' : 'Formula', value: kpis.eei <= 0.8 ? '高效型' : '一般型' },
+                { label: t.eei, value: formatNumber(eei) },
+                { label: t.formulaTypeLabel, value: typeof eei === 'number' ? (isHighEfficiencyFormula ? t.formulaHigh : t.formulaNormal) : MISSING },
             ],
-            result: { label: lang === 'zh' ? '能效得分 SCOREee' : 'Energy Score SCOREee', value: kpis.score, unit: lang === 'zh' ? '分' : 'pts' },
-            status: 'complete',
+            result: { label: t.score, value: formatNumber(score, 1), unit: t.scoreUnit },
+            status: typeof score === 'number' ? 'complete' : 'error',
         },
         {
             id: 'grade',
@@ -141,34 +305,36 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
                 { label: '3', value: 'EEI ≤ 0.80' },
                 { label: '4', value: 'EEI ≤ 1.00' },
             ],
-            result: { label: t.grade, value: kpis.grade, unit: '' },
-            status: 'complete',
+            result: { label: t.grade, value: grade ?? MISSING },
+            status: grade ? 'complete' : 'error',
         },
         {
             id: 'esr',
-            title: `8. 節能率 (ESR)`,
+            title: `8. ${t.esr}`,
             formula: 'ESR = (1 − EEI) × 100%',
             inputs: [
-                { label: lang === 'zh' ? '能效指標 EEI' : 'Energy Efficiency Index EEI', value: kpis.eei?.toFixed(3) || '0.000' },
+                { label: t.eei, value: formatNumber(eei) },
             ],
-            result: { label: lang === 'zh' ? '節能率 ESR' : 'Energy Saving Rate ESR', value: kpis.esr?.toFixed(1) || '0.0', unit: '%' },
-            status: kpis.esr >= 50 ? 'complete' : kpis.esr >= 20 ? 'warning' : 'error',
+            result: { label: t.esrResult, value: formatNumber(esr, 1), unit: '%' },
+            status: typeof esr === 'number'
+                ? (esr >= 50 ? 'complete' : esr >= 20 ? 'warning' : 'error')
+                : 'error',
         },
         {
             id: 'eui',
-            title: `9. EUI 基準尺標`,
+            title: `9. ${t.euiTitle}`,
             formula: 'EUIx = UR × (factor × ΣEUI + EEUI)',
             inputs: [
-                { label: lang === 'zh' ? '近零碳基準 EUI-n' : 'Near-Zero Baseline EUI-n', value: kpis.euiN?.toFixed(0) || '0', unit: 'kWh/m²' },
-                { label: lang === 'zh' ? '優良基準 EUI-g' : 'Good Baseline EUI-g', value: kpis.euiG?.toFixed(0) || '0', unit: 'kWh/m²' },
-                { label: lang === 'zh' ? '合格基準 EUI-m' : 'Median Baseline EUI-m', value: kpis.euiM?.toFixed(0) || '0', unit: 'kWh/m²' },
+                { label: t.euiN, value: formatInteger(euiN), unit: 'kWh/m²' },
+                { label: t.euiG, value: formatInteger(euiG), unit: 'kWh/m²' },
+                { label: t.euiM, value: formatInteger(euiM), unit: 'kWh/m²' },
             ],
-            result: { label: lang === 'zh' ? '最大基準 EUI-max' : 'Maximum Baseline EUI-max', value: kpis.euiMax?.toFixed(0) || '0', unit: 'kWh/m²' },
-            status: 'complete',
+            result: { label: t.euiMax, value: formatInteger(euiMax), unit: 'kWh/m²' },
+            status: typeof euiMax === 'number' ? 'complete' : 'error',
         },
     ];
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: CalcStep['status']) => {
         switch (status) {
             case 'complete': return 'bg-emerald-500';
             case 'warning': return 'bg-amber-500';
@@ -177,7 +343,7 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
         }
     };
 
-    const getStatusBg = (status: string) => {
+    const getStatusBg = (status: CalcStep['status']) => {
         switch (status) {
             case 'complete': return 'border-emerald-200 bg-emerald-50/50';
             case 'warning': return 'border-amber-200 bg-amber-50/50';
@@ -236,19 +402,10 @@ const CalculationBreakdownPanel: React.FC<CalculationBreakdownPanelProps> = ({ k
                             <span className={`text-[12px] font-black ${step.status === 'complete' ? 'text-emerald-600' :
                                 step.status === 'warning' ? 'text-amber-600' : 'text-red-600'
                                 }`}>
-                                {typeof step.result.value === 'number'
-                                    ? step.result.value.toFixed?.(3) ?? step.result.value
-                                    : step.result.value}
+                                {step.result.value}
                                 {step.result.unit ? ` ${step.result.unit}` : ''}
                             </span>
                         </div>
-
-                        {/* Warning Note */}
-                        {step.note && (
-                            <div className="ml-6 mt-1 text-[6px] text-amber-700 bg-amber-100/50 px-1.5 py-0.5 rounded">
-                                ⚠️ {step.note}
-                            </div>
-                        )}
                     </div>
                 ))}
             </div>

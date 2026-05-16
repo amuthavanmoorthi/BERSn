@@ -18,6 +18,12 @@ import ProjectSettingsPanel from './components/ProjectSettingsPanel';
 import EnvelopeSettingsPanel from './components/EnvelopeSettingsPanel';
 import MEPSettingsPanel from './components/MEPSettingsPanel';
 import ProjectWorkflowPanel from './components/ProjectWorkflowPanel';
+import {
+  CheckCircleIcon,
+  NoEntryIcon,
+  PlusIcon,
+  XCircleIcon,
+} from './components/icons/StatusIcons';
 import GeometryCalculationsPanel from './components/GeometryCalculationsPanel';
 import ProjectDashboard from './components/ProjectDashboard';
 import AccountManagement from './components/AccountManagement';
@@ -320,10 +326,29 @@ const App: React.FC = () => {
     const weights = asRecord(outputs?.weights);
     const envelopeEfficiency = asRecord(outputs?.envelopeEfficiency);
     const inputsUsed = asRecord(geometryPreview?.performance?.inputsUsed);
+    const envelopePage = asRecord(geometryPreview?.envelope);
+    const envelopeSummary = asRecord(envelopePage?.summary);
     const eev = numericRecordValue(inputsUsed, 'EEV', kpis.eevCalculation.calculatedEEV);
+    // Inputs the analysis breakdown panel needs but that are not in the
+    // legacy frontend `kpis` shape: total floor area, exempt area
+    // total, and the per-component envelope coefficients (Ug, η, Ki).
+    // We pull them straight from the Python `performance` block so the
+    // calculation panel can render real numbers — not the hard-coded
+    // mock fallbacks it used to fall back to.
+    // Note: backend python uses canonical field names (wallUValue, ug,
+    // etaI, ki). Map them to the frontend semantics used by the
+    // analysis breakdown panel.
+    const afFromBackend = numericRecordValue(inputsUsed, 'AF', baseline.totalFloorAreaAF);
+    const afkTotal = numericRecordValue(inputsUsed, 'AFk_total_m2', 0);
+    const wallU = numericRecordValue(envelopeSummary, 'wallUValue', 0);
+    const glassU = numericRecordValue(envelopeSummary, 'ug', 0);
+    const eta = numericRecordValue(envelopeSummary, 'etaI', 0);
+    const shadingKi = numericRecordValue(envelopeSummary, 'ki', 0);
 
     return {
       ...kpis,
+      af: afFromBackend,
+      exemptTotal: afkTotal,
       afe: official.afe,
       eei: official.eei,
       esr: official.esr,
@@ -345,6 +370,10 @@ const App: React.FC = () => {
         ...kpis.eevCalculation,
         calculatedEEV: eev,
         totalEnvelopeArea: numericRecordValue(envelopeEfficiency, 'weightedArea', kpis.eevCalculation.totalEnvelopeArea),
+        wallU,
+        glassU,
+        eta,
+        shadingKi,
       },
       mepResults: {
         ...kpis.mepResults,
@@ -804,11 +833,14 @@ const App: React.FC = () => {
     if (!activeProjectId) return;
     const trimmedName = scenarioBuilderName.trim();
     if (!trimmedName) {
-      setScenarioBuilderError(lang === 'zh' ? '請輸入方案名稱。' : 'Please enter a scenario name.');
+      // Pull the error copy from the translation dictionary so the
+      // message follows the active UI language even when the user
+      // toggles `lang` after the error first fires.
+      setScenarioBuilderError(t.scenarioNameRequired);
       return;
     }
     if (scenarioBuilderSelectedIds.length === 0) {
-      setScenarioBuilderError(lang === 'zh' ? '請至少選擇一項措施。' : 'Please select at least one measure.');
+      setScenarioBuilderError(t.scenarioMeasureRequired);
       return;
     }
     setScenarioBuilderSaving(true);
@@ -825,11 +857,11 @@ const App: React.FC = () => {
       // Kick off a simulation so the user sees results immediately.
       void handleSelectScenario(created.id);
     } catch (error) {
-      setScenarioBuilderError(error instanceof Error ? error.message : 'Failed to create scenario.');
+      setScenarioBuilderError(error instanceof Error ? error.message : t.scenarioCreateFailed);
     } finally {
       setScenarioBuilderSaving(false);
     }
-  }, [activeProjectId, scenarioBuilderName, scenarioBuilderSelectedIds, lang, handleSelectScenario]);
+  }, [activeProjectId, scenarioBuilderName, scenarioBuilderSelectedIds, t, handleSelectScenario]);
 
   const handleDeleteScenario = useCallback(async (scenarioId: string) => {
     if (!activeProjectId) return;
@@ -848,9 +880,9 @@ const App: React.FC = () => {
         setSelectedScenarioId(null);
       }
     } catch (error) {
-      setScenariosError(error instanceof Error ? error.message : 'Failed to delete scenario.');
+      setScenariosError(error instanceof Error ? error.message : t.scenarioDeleteFailed);
     }
-  }, [activeProjectId, lang, selectedScenarioId]);
+  }, [activeProjectId, lang, selectedScenarioId, t]);
 
   const handleEnterProject = (projectId: string) => {
     setActiveBackendProject(null);
@@ -1201,9 +1233,15 @@ const App: React.FC = () => {
                         <div className="flex justify-between items-start mb-3">
                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${categoryClasses[m.category] || 'bg-slate-100 text-slate-600'}`}>{categoryName}</span>
                           {impact?.isEligible ? (
-                            <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">✅ {t.eligible}</span>
+                            <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">
+                              <CheckCircleIcon className="w-3.5 h-3.5" />
+                              {t.eligible}
+                            </span>
                           ) : (
-                            <span className="text-[10px] font-black text-red-400 flex items-center gap-1" title={impact?.ineligibleReason}>⛔ {t.ineligible}</span>
+                            <span className="text-[10px] font-black text-red-400 flex items-center gap-1" title={impact?.ineligibleReason}>
+                              <NoEntryIcon className="w-3.5 h-3.5" />
+                              {t.ineligible}
+                            </span>
                           )}
                         </div>
                         <h4 className="font-black text-sm text-slate-800 mb-1">{measureName}</h4>
@@ -1283,9 +1321,10 @@ const App: React.FC = () => {
                   <button
                     onClick={handleOpenScenarioBuilder}
                     disabled={!isBackendWorkspace || measureLibrary.length === 0}
-                    className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
+                    className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >
-                    + {lang === 'zh' ? '新增' : 'New'}
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    {lang === 'zh' ? '新增' : 'New'}
                   </button>
                 </div>
 
@@ -1303,9 +1342,11 @@ const App: React.FC = () => {
                       </p>
                       <button
                         onClick={() => setScenarioBuilderOpen(false)}
-                        className="text-[10px] font-black text-slate-400 hover:text-white"
+                        className="text-slate-400 hover:text-white transition-colors"
+                        title={lang === 'zh' ? '關閉' : 'Close'}
+                        aria-label={lang === 'zh' ? '關閉' : 'Close'}
                       >
-                        ✕
+                        <XCircleIcon className="w-4 h-4" />
                       </button>
                     </div>
                     <input
@@ -1381,9 +1422,10 @@ const App: React.FC = () => {
                           <button
                             onClick={(e) => { e.stopPropagation(); void handleDeleteScenario(sc.id); }}
                             title={lang === 'zh' ? '刪除' : 'Delete'}
-                            className="w-6 h-6 rounded-full border-2 border-slate-600 text-slate-400 hover:text-red-300 hover:border-red-400 transition-colors text-[10px]"
+                            aria-label={lang === 'zh' ? '刪除方案' : 'Delete scenario'}
+                            className="w-6 h-6 rounded-full border-2 border-slate-600 text-slate-400 hover:text-red-300 hover:border-red-400 transition-colors flex items-center justify-center"
                           >
-                            ✕
+                            <XCircleIcon className="w-3.5 h-3.5" />
                           </button>
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedScenarioId === sc.id ? 'border-blue-400 bg-blue-500' : 'border-slate-600'}`}>
                             {selectedScenarioId === sc.id && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}

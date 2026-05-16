@@ -198,9 +198,22 @@ function assertCanViewProject(user: ProjectUserContext, project: ProjectRow, req
   );
 }
 
+/**
+ * Scenarios are what-if simulations layered on top of a project — they
+ * never mutate the project itself, so the gate is intentionally
+ * looser than `assertCanEditProject`:
+ *
+ *   - admin: always allowed.
+ *   - everyone else (vendor / agency reviewer / etc.): allowed when
+ *     they created OR are explicitly assigned to the project.
+ *
+ * Note that this is independent of workflow state: a vendor can still
+ * model what-if scenarios on an APPROVED project of their own without
+ * touching the locked configuration.
+ */
 function assertCanEditScenarios(user: ProjectUserContext, project: ProjectRow, requestId: string): void {
   if (isAdminRole(user.role)) return;
-  if (isAgencyRole(user.role) && project.created_by === user.id) return;
+  if (project.created_by === user.id || project.assigned_to === user.id) return;
   throw new AuthServiceError(
     403,
     'BERSN_SCENARIO_FORBIDDEN',
