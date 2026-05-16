@@ -1186,7 +1186,7 @@ const App: React.FC = () => {
             )}
           </div>
         ) : activeTab === 'report' ? (
-          <ReportView baseline={baseline} kpis={displayKpis} lang={lang} />
+          <ReportView baseline={baseline} kpis={displayKpis} geometryPreview={geometryPreview} lang={lang} />
         ) : activeTab === 'optimization' ? (
           <div className="lg:col-span-12 grid grid-cols-12 gap-8 overflow-y-auto custom-scrollbar p-2">
             <div className="col-span-12 lg:col-span-7 space-y-8">

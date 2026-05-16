@@ -319,6 +319,15 @@ export interface EnergyKPIs {
     totalHeatGain: number;
     totalEnvelopeArea: number;
     calculatedEEV: number;
+    // Backend-derived envelope coefficients (mirrored from
+    // geometryPreview.envelope.summary by displayKpis in App.tsx).
+    // Optional because the legacy frontend calculation engine does
+    // not populate them; the analysis breakdown + report fall back
+    // to em-dash when missing.
+    wallU?: number;
+    glassU?: number;
+    eta?: number;
+    shadingKi?: number;
   };
   mepResults: {
     eac: number;
