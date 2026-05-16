@@ -16,6 +16,8 @@
     "db:seed-demo:prod": "node dist/scripts/seedDemoProjectData.js",
     "db:seed-rbac": "tsx src/scripts/seedRbacAccounts.ts",
     "db:seed-rbac:prod": "node dist/scripts/seedRbacAccounts.js",
+    "db:seed-demo-accounts": "tsx src/scripts/seedDemoAccounts.ts",
+    "db:seed-demo-accounts:prod": "node dist/scripts/seedDemoAccounts.js",
     "db:cleanup-users": "tsx src/scripts/cleanupNonSeedUsers.ts",
     "db:cleanup-users:prod": "node dist/scripts/cleanupNonSeedUsers.js",
     "auth:provision-user": "tsx src/scripts/provisionAuthUser.ts",
