@@ -129,7 +129,16 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
         PERMISSIONS.AUDIT_LOG_VIEW,
     ],
     [ROLES.AGENCY_USER]: [
+        // Per the BERSn role spec, an agency reviewer can also author
+        // their own projects — typically when capturing data on behalf
+        // of a vendor or running an internal pilot. The review-side
+        // capabilities below are the primary workflow.
+        PERMISSIONS.PROJECT_CREATE,
+        PERMISSIONS.PROJECT_VIEW_OWN,
         PERMISSIONS.PROJECT_VIEW_ASSIGNED,
+        PERMISSIONS.PROJECT_EDIT_OWN,
+        PERMISSIONS.PROJECT_SUBMIT,
+        PERMISSIONS.PROJECT_EXPORT_OWN,
         PERMISSIONS.WORKFLOW_REVIEW,
         PERMISSIONS.WORKFLOW_APPROVE,
         PERMISSIONS.WORKFLOW_REJECT,
@@ -218,6 +227,12 @@ const VENDOR_TRANSITIONS: TransitionMap = {
 };
 
 const AGENCY_TRANSITIONS: TransitionMap = {
+    // Agency users can author their own projects, so they need the same
+    // forward-submit transitions a vendor has on a DRAFT they created.
+    // Per-project ownership is enforced separately in the workflow
+    // panel (`isOwner` gate below) and by the backend service layer.
+    [WORKFLOW_STATES.DRAFT]: [WORKFLOW_STATES.SUBMITTED],
+    [WORKFLOW_STATES.REVISION_REQUESTED]: [WORKFLOW_STATES.SUBMITTED],
     [WORKFLOW_STATES.SUBMITTED]: [WORKFLOW_STATES.UNDER_REVIEW],
     [WORKFLOW_STATES.UNDER_REVIEW]: [
         WORKFLOW_STATES.APPROVED,
@@ -225,8 +240,6 @@ const AGENCY_TRANSITIONS: TransitionMap = {
         WORKFLOW_STATES.REVISION_REQUESTED,
     ],
     [WORKFLOW_STATES.APPROVED]: [WORKFLOW_STATES.COMPLETED],
-    [WORKFLOW_STATES.REVISION_REQUESTED]: [],
-    [WORKFLOW_STATES.DRAFT]: [],
     [WORKFLOW_STATES.REJECTED]: [],
     [WORKFLOW_STATES.COMPLETED]: [],
     [WORKFLOW_STATES.ARCHIVED]: [],

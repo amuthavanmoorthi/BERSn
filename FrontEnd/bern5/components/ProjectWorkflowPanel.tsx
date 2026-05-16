@@ -154,10 +154,15 @@ const ProjectWorkflowPanel: React.FC<ProjectWorkflowPanelProps> = ({ project, la
     }, [project.id, project.status, t]);
 
     const role = useMemo(() => normalizeRole(session.role), [session.role]);
+    // A user "owns" a project when they created it (vendor/agency
+    // self-authored) OR were assigned to it as the reviewer (agency
+    // review queue). Mirrors backend Backend/src/services/projectService
+    // .ts isProjectOwner().
     const isOwner = useMemo(() => {
         if (!session.user) return false;
+        if (project.createdBy && project.createdBy === session.user.id) return true;
         return project.assignedTo === session.user.id;
-    }, [project.assignedTo, session.user]);
+    }, [project.createdBy, project.assignedTo, session.user]);
 
     const availableActions = useMemo<ActionDescriptor[]>(() => {
         const allowed = allowedTransitionsFor(role, status);
@@ -168,6 +173,12 @@ const ProjectWorkflowPanel: React.FC<ProjectWorkflowPanelProps> = ({ project, la
                 if (!session.hasPermission(action.permission as never)) return false;
                 // Vendors only act on their own projects.
                 if (role === 'VENDOR_USER' && !isOwner) return false;
+                // Submitting a draft is a creator action; agencies that
+                // *review* may not submit projects they didn't author.
+                // Admins keep their override capability.
+                if (action.target === 'SUBMITTED' && role === 'AGENCY_USER' && !isOwner) {
+                    return false;
+                }
                 return true;
             });
     }, [role, status, session, isOwner]);

@@ -80,9 +80,11 @@ services:
       AUTH_WEBAUTHN_RP_ID:   ${BERSN_DOMAIN:-localhost}
       AUTH_WEBAUTHN_ORIGINS: ${BERSN_WEBAUTHN_ORIGINS:-https://bersn.staging}
 
-      # Bootstrap admin (created on first start)
-      AUTH_BOOTSTRAP_ADMIN_USERNAME: admin
-      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${BERSN_ADMIN_PASSWORD:-changeme_in_production}
+      # Legacy bootstrap admin is intentionally disabled; the canonical
+      # SYS_ADMIN account is provisioned by `db:seed-rbac`
+      # (src/scripts/seedRbacAccounts.ts) which runs after migrations.
+      AUTH_BOOTSTRAP_ADMIN_USERNAME: ""
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ""
       AUTH_BOOTSTRAP_ADMIN_ROLE:     SYS_ADMIN
       AUTH_BOOTSTRAP_ADMIN_FORCE:    "false"
 

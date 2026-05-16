@@ -17,6 +17,7 @@ import FloorManagerPanel from './components/FloorManagerPanel';
 import ProjectSettingsPanel from './components/ProjectSettingsPanel';
 import EnvelopeSettingsPanel from './components/EnvelopeSettingsPanel';
 import MEPSettingsPanel from './components/MEPSettingsPanel';
+import ProjectWorkflowPanel from './components/ProjectWorkflowPanel';
 import GeometryCalculationsPanel from './components/GeometryCalculationsPanel';
 import ProjectDashboard from './components/ProjectDashboard';
 import AccountManagement from './components/AccountManagement';
@@ -51,6 +52,8 @@ import {
   type BackendScenarioResult,
 } from './services/projectApi';
 import type { ConfigLookups, GeometryPreview, Project } from './types/project';
+import { useViewRouter } from './routes/useViewRouter';
+import { useSession } from './context/SessionContext';
 
 const PASSKEY_PROMPT_KEY = 'bersn_passkey_prompted';
 
@@ -147,11 +150,15 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = translations[lang];
 
-  // View state: 'login', 'change-password', 'dashboard', 'workspace', 'accounts', or 'overview'
-  const [currentView, setCurrentView] = useState<'login' | 'change-password' | 'dashboard' | 'workspace' | 'accounts' | 'overview'>('login');
+  // View state is driven by react-router. `useViewRouter` translates
+  // the current URL into the legacy `currentView` vocabulary so the
+  // rest of App.tsx can keep its existing rendering branches; the
+  // companion `setCurrentView` setter pushes the next view onto the
+  // browser history. activeProjectId now comes from /projects/:projectId.
+  const { currentView, activeProjectId, setCurrentView } = useViewRouter();
+  const session = useSession();
   const [authReady, setAuthReady] = useState(false);
   const [loginNotice, setLoginNotice] = useState('');
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeBackendProject, setActiveBackendProject] = useState<Project | null>(null);
   const [configLookups, setConfigLookups] = useState<ConfigLookups | null>(null);
   const [configLookupError, setConfigLookupError] = useState('');
@@ -245,7 +252,7 @@ const App: React.FC = () => {
 
   const objects = useMemo(() => floorsToGeometryObjects(floors), [floors]);
 
-  const [activeTab, setActiveTab] = useState<'config' | 'analysis' | 'optimization' | 'report'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'analysis' | 'optimization' | 'report' | 'workflow'>('config');
   const [configSubTab, setConfigSubTab] = useState<'project' | 'envelope' | 'mep'>('project');
   const [analysisSubTab, setAnalysisSubTab] = useState<'eev' | 'mep'>('eev');
 
@@ -377,31 +384,33 @@ const App: React.FC = () => {
     }
   }, [floorsForCalc, isBackendWorkspace]);
 
-  // Bootstrap session (auto-login if cookie still valid)
+  // Bootstrap session. SessionProvider already calls `getCurrentSession`
+  // on mount; we just react to its result here so we do not double-hit
+  // /api/auth/me. The route guards (RequireAuth in routes/RouteGuards
+  // .tsx) handle the not-signed-in redirect — this effect only needs
+  // to deal with two app-level UX rules:
+  //   1. Mark the SPA ready once the session check has resolved.
+  //   2. Force first-login users into the change-password flow.
   useEffect(() => {
-    let cancelled = false;
+    if (session.isLoading) {
+      return;
+    }
+    setAuthReady(true);
 
-    getCurrentUser()
-      .then((user) => {
-        if (!cancelled) {
-          setCurrentView(user?.is_first_login ? 'change-password' : 'dashboard');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCurrentView('login');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAuthReady(true);
-        }
-      });
+    // Force first-login users into the password-change flow,
+    // including when they accidentally land on /login with a still
+    // valid temporary-password cookie.
+    if (session.user?.is_first_login && currentView !== 'change-password') {
+      setCurrentView('change-password', { replace: true });
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    // Users landing on /login while already authenticated should not
+    // see the login form again — bounce them to the dashboard.
+    if (session.user && !session.user.is_first_login && currentView === 'login') {
+      setCurrentView('dashboard', { replace: true });
+    }
+  }, [session.isLoading, session.user, currentView, setCurrentView]);
 
   // Load BERSn config lookups once authenticated
   useEffect(() => {
@@ -847,13 +856,13 @@ const App: React.FC = () => {
     setActiveBackendProject(null);
     setGeometryPreview(null);
     setGeometryPreviewError('');
-    setActiveProjectId(projectId);
-    setCurrentView('workspace');
+    setCurrentView('workspace', { projectId });
   };
 
   const handleBackToDashboard = () => {
+    // activeProjectId clears automatically once the URL no longer
+    // matches /projects/:projectId — no explicit reset needed.
     setCurrentView('dashboard');
-    setActiveProjectId(null);
   };
 
   // Legacy helper (kept for compatibility, but main editing is via FloorManagerPanel)
@@ -918,6 +927,12 @@ const App: React.FC = () => {
   const handleLogin = async (username: string, password: string, rememberMe: boolean) => {
     setLoginNotice('');
     const result = await loginWithApi(username, password, rememberMe);
+    // Refresh the session context so RouteGuards / sidebars see the
+    // newly-authenticated user before we navigate; otherwise
+    // <RequireAuth> on /dashboard could briefly bounce us back to
+    // /login because session.user is still null in memory.
+    await session.refresh();
+
     if (result.must_change_password) {
       setCurrentView('change-password');
       return;
@@ -953,12 +968,18 @@ const App: React.FC = () => {
 
   const handlePasskeyLogin = async (username: string, rememberMe: boolean) => {
     const result = await loginWithPasskey(username, rememberMe);
+    await session.refresh();
     setCurrentView(result.must_change_password ? 'change-password' : 'dashboard');
   };
 
   const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
     try {
       await changePasswordWithApi(currentPassword, newPassword);
+      // changePassword clears the access cookie server-side, so the
+      // local session must be cleared before navigating away from the
+      // change-password page; otherwise RouteGuards would still think
+      // the user is authenticated.
+      session.clear();
       setLoginNotice(
         lang === 'zh'
           ? '密碼已更新，請使用新密碼重新登入。'
@@ -970,6 +991,7 @@ const App: React.FC = () => {
         error instanceof AuthError
         && (error.code === 'BERSN_AUTH_TOKEN_INVALID' || error.code === 'BERSN_AUTH_INVALID_SESSION')
       ) {
+        session.clear();
         setLoginNotice(
           lang === 'zh'
             ? '登入狀態已失效。請先使用目前的暫時密碼重新登入，再更新密碼。'
@@ -983,6 +1005,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await logoutWithApi();
+    session.clear();
     sessionStorage.removeItem(PASSKEY_PROMPT_KEY);
     setLoginNotice(
       lang === 'zh'
@@ -1084,7 +1107,16 @@ const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <nav className="flex bg-slate-800/50 p-1 rounded-xl">
-            {(['config', 'analysis', 'optimization', 'report'] as const).map((tab) => (
+            {/*
+              The 'workflow' tab hosts the Submit / Start Review / Approve
+              / Reject / Request-Revision / Mark-Completed actions plus
+              the audit timeline.  Keeping it as a full-screen tab (vs.
+              a strip above the 3D viewer) lets the 3D canvas use the
+              entire viewport on every other tab.  Hidden on demo
+              projects since the workflow service only operates on
+              backend-backed projects.
+            */}
+            {(['config', 'analysis', 'optimization', 'report', ...(isBackendWorkspace ? ['workflow'] as const : [])] as const).map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
                 {t[tab as keyof typeof t]}
               </button>
@@ -1100,8 +1132,28 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 min-h-0 ${activeTab === 'report' ? 'overflow-auto' : 'grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden max-w-[1920px] mx-auto w-full'}`}>
-        {activeTab === 'report' ? (
+      <main className={`flex-1 min-h-0 ${activeTab === 'report' || activeTab === 'workflow' ? 'overflow-auto' : 'grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden max-w-[1920px] mx-auto w-full'}`}>
+        {activeTab === 'workflow' ? (
+          // Dedicated workflow screen — full-width status badge, role-
+          // gated action buttons, and the chronological audit timeline.
+          // Lives at the very last tab in the header so it sits "right
+          // before sign-out" and never steals room from the 3D canvas.
+          <div className="p-4 max-w-[1280px] mx-auto w-full">
+            {isBackendWorkspace && activeBackendProject ? (
+              <ProjectWorkflowPanel
+                project={activeBackendProject}
+                lang={lang}
+                onProjectChanged={(updated) => setActiveBackendProject(updated)}
+              />
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-sm text-slate-500">
+                {lang === 'zh'
+                  ? '請先從專案儀表板進入後端專案以查看工作流程。'
+                  : 'Open a backend-backed project from the dashboard to view its workflow.'}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'report' ? (
           <ReportView baseline={baseline} kpis={displayKpis} lang={lang} />
         ) : activeTab === 'optimization' ? (
           <div className="lg:col-span-12 grid grid-cols-12 gap-8 overflow-y-auto custom-scrollbar p-2">

@@ -203,6 +203,42 @@ export async function listProjectsAssignedToUser(
   return rows;
 }
 
+/**
+ * Project list for an AGENCY reviewer. Returns:
+ *   - any project that has left DRAFT (the cross-org review queue),
+ *   - any project the reviewer created or is explicitly assigned to,
+ *   - any project inside the reviewer's own organisation (colleague
+ *     drafts).
+ *
+ * The wide review queue is required by the BERSn role spec — agencies
+ * must be able to review *vendor-submitted* projects regardless of
+ * which vendor organisation authored them.
+ */
+export async function listProjectsForAgencyReviewer(
+  client: PoolClient,
+  userId: string,
+  organizationId: string | null,
+): Promise<ProjectRow[]> {
+  const params: unknown[] = [userId];
+  let orgClause = '';
+  if (organizationId) {
+    params.push(organizationId);
+    orgClause = ` OR p.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query<ProjectRow>(
+    buildProjectSelect(
+      `WHERE p.is_deleted = FALSE
+         AND (
+           p.status <> 'DRAFT'
+           OR p.created_by = $1
+           OR p.assigned_to = $1${orgClause}
+         )`,
+    ),
+    params,
+  );
+  return rows;
+}
+
 export async function findProjectById(client: PoolClient, projectId: string): Promise<ProjectRow | null> {
   const { rows } = await client.query<ProjectRow>(
     buildProjectSelect('WHERE p.id = $1 AND p.is_deleted = FALSE'),
