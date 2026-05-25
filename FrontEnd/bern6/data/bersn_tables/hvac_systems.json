@@ -1,0 +1,87 @@
+{
+    "systemTypes": [
+        {
+            "id": "HVAC01",
+            "name": "中央空調 - 標準 (Central Standard)",
+            "nameEn": "Central Chiller - Standard",
+            "EAC_base": 1.20,
+            "COP_ref": 3.5,
+            "type": "CENTRAL"
+        },
+        {
+            "id": "HVAC02",
+            "name": "中央空調 - 高效 (Central High-Eff)",
+            "nameEn": "Central Chiller - High Efficiency",
+            "EAC_base": 0.95,
+            "COP_ref": 5.0,
+            "type": "CENTRAL"
+        },
+        {
+            "id": "HVAC03",
+            "name": "VRV/VRF系統 (VRV/VRF)",
+            "nameEn": "VRV/VRF System",
+            "EAC_base": 1.00,
+            "COP_ref": 4.5,
+            "type": "VRF"
+        },
+        {
+            "id": "HVAC04",
+            "name": "VRV高效型 (VRV High-Eff)",
+            "nameEn": "VRV/VRF High Efficiency",
+            "EAC_base": 0.85,
+            "COP_ref": 5.5,
+            "type": "VRF"
+        },
+        {
+            "id": "HVAC05",
+            "name": "分離式冷氣 (Split AC)",
+            "nameEn": "Split Air Conditioner",
+            "EAC_base": 1.30,
+            "COP_ref": 3.2,
+            "type": "SPLIT"
+        },
+        {
+            "id": "HVAC06",
+            "name": "分離式高效 (Split High-Eff)",
+            "nameEn": "Split AC - High Efficiency",
+            "EAC_base": 1.05,
+            "COP_ref": 4.2,
+            "type": "SPLIT"
+        },
+        {
+            "id": "HVAC07",
+            "name": "冰蓄冷系統 (Ice Storage)",
+            "nameEn": "Ice Storage System",
+            "EAC_base": 0.90,
+            "COP_ref": 4.0,
+            "type": "CENTRAL",
+            "hasThermalStorage": true
+        },
+        {
+            "id": "HVAC08",
+            "name": "地源熱泵 (Ground Source)",
+            "nameEn": "Ground Source Heat Pump",
+            "EAC_base": 0.70,
+            "COP_ref": 6.0,
+            "type": "GSHP"
+        },
+        {
+            "id": "HVAC09",
+            "name": "自然通風 (Natural Ventilation)",
+            "nameEn": "Natural Ventilation Dominant",
+            "EAC_base": 0.40,
+            "type": "PASSIVE"
+        }
+    ],
+    "efficiencyFactors": {
+        "variableSpeedDrive": 0.90,
+        "economizer": 0.95,
+        "energyRecovery": 0.92,
+        "demandControlVentilation": 0.93,
+        "highEfficiencyFilters": 0.98
+    },
+    "notes": {
+        "EAC_base": "Base energy efficiency factor (lower is better)",
+        "COP_ref": "Reference coefficient of performance"
+    }
+}

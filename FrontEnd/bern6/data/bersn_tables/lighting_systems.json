@@ -1,0 +1,65 @@
+{
+    "systemTypes": [
+        {
+            "id": "LT01",
+            "name": "傳統日光燈 (Fluorescent T8)",
+            "nameEn": "Fluorescent T8",
+            "EL_base": 1.20,
+            "LPD_W_m2": 15,
+            "efficacy_lm_W": 75
+        },
+        {
+            "id": "LT02",
+            "name": "高效日光燈 (Fluorescent T5)",
+            "nameEn": "Fluorescent T5",
+            "EL_base": 1.00,
+            "LPD_W_m2": 12,
+            "efficacy_lm_W": 95
+        },
+        {
+            "id": "LT03",
+            "name": "LED標準 (LED Standard)",
+            "nameEn": "LED Standard",
+            "EL_base": 0.75,
+            "LPD_W_m2": 8,
+            "efficacy_lm_W": 120
+        },
+        {
+            "id": "LT04",
+            "name": "LED高效 (LED High-Eff)",
+            "nameEn": "LED High Efficiency",
+            "EL_base": 0.55,
+            "LPD_W_m2": 6,
+            "efficacy_lm_W": 160
+        },
+        {
+            "id": "LT05",
+            "name": "LED超高效 (LED Premium)",
+            "nameEn": "LED Premium",
+            "EL_base": 0.45,
+            "LPD_W_m2": 5,
+            "efficacy_lm_W": 200
+        }
+    ],
+    "controlFactors": {
+        "manual": 1.00,
+        "occupancySensor": 0.85,
+        "daylightDimming": 0.80,
+        "combinedControls": 0.70,
+        "advancedDLCS": 0.60
+    },
+    "targetIlluminance_lux": {
+        "OFFICE": 500,
+        "RETAIL": 750,
+        "HOSPITAL": 500,
+        "SCHOOL": 500,
+        "HOTEL": 300,
+        "RESIDENTIAL": 200,
+        "CORRIDOR": 100,
+        "PARKING": 75
+    },
+    "notes": {
+        "EL_base": "Base lighting efficiency factor (lower is better)",
+        "LPD_W_m2": "Lighting Power Density in W/m²"
+    }
+}

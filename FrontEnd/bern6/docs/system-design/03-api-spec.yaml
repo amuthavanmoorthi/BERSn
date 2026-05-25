@@ -1,0 +1,865 @@
+openapi: 3.0.3
+info:
+  title: BERN3 BERSn Platform API
+  version: 1.0.0
+  description: |
+    API spec for project management, BERSn calculation, optimization scenarios,
+    and report generation.
+servers:
+  - url: https://api.example.com/v1
+tags:
+  - name: Auth
+  - name: Users
+  - name: Projects
+  - name: Calculation
+  - name: Scenarios
+  - name: ReferenceData
+  - name: Reports
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [SYS_ADMIN, AGENCY_USER, VENDOR_USER]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive, pending]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+    post:
+      tags: [Users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/{userId}:
+    patch:
+      tags: [Users]
+      summary: Update user
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPatchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, in-progress, completed, archived]
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+    post:
+      tags: [Projects]
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project detail
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetailResponse'
+    patch:
+      tags: [Projects]
+      summary: Update project meta
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectPatchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /projects/{projectId}/baseline:
+    get:
+      tags: [Projects]
+      summary: Get baseline
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Baseline'
+    put:
+      tags: [Projects]
+      summary: Upsert baseline
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Baseline'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Baseline'
+
+  /projects/{projectId}/geometry:
+    get:
+      tags: [Projects]
+      summary: List geometry objects
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GeometryObject'
+    put:
+      tags: [Projects]
+      summary: Replace all geometry objects
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/GeometryObject'
+      responses:
+        '200':
+          description: OK
+
+  /projects/{projectId}/calculate:
+    post:
+      tags: [Calculation]
+      summary: Trigger BERSn calculation
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [sync, async]
+                  default: sync
+                engineVersion:
+                  type: string
+                  example: py-engine-1.0.0
+      responses:
+        '200':
+          description: Calculation completed (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationResultResponse'
+        '202':
+          description: Accepted (async)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: queued
+
+  /projects/{projectId}/calculations:
+    get:
+      tags: [Calculation]
+      summary: List calculation runs
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CalculationRun'
+
+  /projects/{projectId}/calculations/{runId}:
+    get:
+      tags: [Calculation]
+      summary: Get run detail + result
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationResultResponse'
+
+  /projects/{projectId}/scenarios:
+    get:
+      tags: [Scenarios]
+      summary: List scenarios
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Scenario'
+    post:
+      tags: [Scenarios]
+      summary: Create scenario
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+
+  /projects/{projectId}/scenarios/{scenarioId}/simulate:
+    post:
+      tags: [Scenarios]
+      summary: Simulate selected measures and return result
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioSimulationResponse'
+
+  /reference/regions:
+    get:
+      tags: [ReferenceData]
+      summary: Region lookup list
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RefRegion'
+
+  /reference/use-categories:
+    get:
+      tags: [ReferenceData]
+      summary: Use category lookup list
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RefUseCategory'
+
+  /reference/measures:
+    get:
+      tags: [ReferenceData]
+      summary: Measure library
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Measure'
+
+  /projects/{projectId}/reports:
+    post:
+      tags: [Reports]
+      summary: Generate report (PDF)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runId, reportType]
+              properties:
+                runId:
+                  type: string
+                  format: uuid
+                reportType:
+                  type: string
+                  enum: [summary, official]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProjectId:
+      in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RunId:
+      in: path
+      name: runId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ScenarioId:
+      in: path
+      name: scenarioId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    AuthTokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [SYS_ADMIN, AGENCY_USER, VENDOR_USER]
+        status:
+          type: string
+          enum: [active, inactive, pending]
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+
+    UserCreateRequest:
+      type: object
+      required: [email, displayName, role]
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [SYS_ADMIN, AGENCY_USER, VENDOR_USER]
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+
+    UserPatchRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [SYS_ADMIN, AGENCY_USER, VENDOR_USER]
+        status:
+          type: string
+          enum: [active, inactive, pending]
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [draft, in-progress, completed, archived]
+        latestGrade:
+          type: string
+          nullable: true
+        latestEei:
+          type: number
+          format: double
+          nullable: true
+
+    ProjectCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        buildingType:
+          type: string
+          nullable: true
+        totalAreaM2:
+          type: number
+          format: double
+          nullable: true
+
+    ProjectPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [draft, in-progress, completed, archived]
+        location:
+          type: string
+
+    ProjectDetailResponse:
+      type: object
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        baseline:
+          $ref: '#/components/schemas/Baseline'
+        geometry:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeometryObject'
+
+    Baseline:
+      type: object
+      properties:
+        category:
+          type: string
+        region:
+          type: string
+        ur:
+          type: number
+          format: double
+        hvacMode:
+          type: string
+        totalFloorAreaAF:
+          type: number
+          format: double
+        exemptAreas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExemptArea'
+        envelope:
+          type: object
+          additionalProperties: true
+        mep:
+          type: object
+          additionalProperties: true
+
+    ExemptArea:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        reason:
+          type: string
+        area:
+          type: number
+          format: double
+
+    GeometryObject:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [box, lShape, tShape, cylinder, arc, ellipse, fan]
+        params:
+          type: object
+          additionalProperties: true
+        position:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: double
+
+    CalculationRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        engineVersion:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CalculationResultResponse:
+      type: object
+      properties:
+        run:
+          $ref: '#/components/schemas/CalculationRun'
+        result:
+          type: object
+          properties:
+            eei:
+              type: number
+            score:
+              type: number
+            grade:
+              type: string
+            esr:
+              type: number
+            afe:
+              type: number
+            euiN:
+              type: number
+            euiG:
+              type: number
+            euiM:
+              type: number
+            euiMax:
+              type: number
+            weights:
+              type: object
+              additionalProperties: true
+            eevCalculation:
+              type: object
+              additionalProperties: true
+            mepResults:
+              type: object
+              additionalProperties: true
+            breakdown:
+              type: object
+              additionalProperties: true
+
+    Scenario:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        selectedMeasureIds:
+          type: array
+          items:
+            type: string
+
+    ScenarioCreateRequest:
+      type: object
+      required: [name, selectedMeasureIds]
+      properties:
+        name:
+          type: string
+        selectedMeasureIds:
+          type: array
+          items:
+            type: string
+
+    ScenarioSimulationResponse:
+      type: object
+      properties:
+        scenarioId:
+          type: string
+          format: uuid
+        simulatedEEI:
+          type: number
+        simulatedScore:
+          type: number
+        simulatedGrade:
+          type: string
+        totalCostTwd:
+          type: number
+        cpValue:
+          type: number
+
+    Measure:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [ENVELOPE, HVAC, LIGHTING, ELEVATOR, DHW, CONTROL]
+        description:
+          type: string
+        eligibility:
+          type: object
+          additionalProperties: true
+        patches:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        costModel:
+          type: object
+          additionalProperties: true
+
+    RefRegion:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        ur:
+          type: number
+
+    RefUseCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        aeui:
+          type: number
+        leui:
+          type: number
+        eeui:
+          type: number
+        es:
+          type: number
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+          nullable: true
+        reportType:
+          type: string
+        fileUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time

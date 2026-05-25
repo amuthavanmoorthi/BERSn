@@ -9,3 +9,5 @@ coverage/
 # CalEngine has its own separate git repo (Bitbucket+GitHub)
 CalEngine/.git/
 CalEngine/node_modules/
+
+.claude/

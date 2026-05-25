@@ -28,60 +28,6 @@ interface ProjectDashboardProps {
 
 const STATUS_FILTERS: Array<ProjectStatus | 'all'> = ['all', ...ALL_WORKFLOW_STATES];
 
-const DEMO_PROJECTS: Project[] = [
-    {
-        id: 'demo-a1-green-hq',
-        name: 'A1 綠能總部',
-        organization: '桃園市政府工務局',
-        organizationId: null,
-        location: '桃園區',
-        createdAt: '2026-01-20T00:00:00.000Z',
-        updatedAt: '2026-01-20T00:00:00.000Z',
-        status: 'UNDER_REVIEW',
-        category: '辦公室',
-        buildingType: 'Office',
-        buildingTypeCode: 'OFFICE',
-        buildingTypeEuiBaseline: 220,
-        totalArea: 5000,
-        grade: 'A',
-        eei: 0.72,
-    },
-    {
-        id: 'demo-a2-pmis-v2',
-        name: 'A2 PMIS V2',
-        organization: '桃園市政府都市發展局',
-        organizationId: null,
-        location: '中壢區',
-        createdAt: '2026-01-18T00:00:00.000Z',
-        updatedAt: '2026-01-18T00:00:00.000Z',
-        status: 'DRAFT',
-        category: '混合使用',
-        buildingType: 'Mixed Use',
-        buildingTypeCode: 'MIXED_USE',
-        buildingTypeEuiBaseline: 240,
-        totalArea: 8200,
-        grade: 'B',
-        eei: 0.86,
-    },
-    {
-        id: 'demo-retrofit-design',
-        name: '復設計專案',
-        organization: '桃園市政府住宅發展處',
-        organizationId: null,
-        location: '龜山區',
-        createdAt: '2026-01-15T00:00:00.000Z',
-        updatedAt: '2026-01-15T00:00:00.000Z',
-        status: 'APPROVED',
-        category: '住宅',
-        buildingType: 'Residential',
-        buildingTypeCode: 'RESIDENTIAL',
-        buildingTypeEuiBaseline: 120,
-        totalArea: 3600,
-        grade: 'A',
-        eei: 0.64,
-    },
-];
-
 const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     lang,
     onEnterProject,
@@ -154,21 +100,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         setPageMessage(t ? '專案已建立並寫入稽核紀錄。' : 'Project created and audit log recorded.');
     };
 
-    const dashboardProjects = useMemo(() => {
-        // Vendors only see backend projects; admins/agencies also see demo cards.
-        const showDemoProjects = session.hasAnyPermission(
-            PERMISSIONS.PROJECT_VIEW_ALL,
-            PERMISSIONS.PROJECT_VIEW_ASSIGNED,
-        );
-        const backendProjectIds = new Set(projects.map((project) => project.id));
-        if (!showDemoProjects) {
-            return projects;
-        }
-        return [
-            ...projects,
-            ...DEMO_PROJECTS.filter((project) => !backendProjectIds.has(project.id)),
-        ];
-    }, [projects, session]);
+    const dashboardProjects = projects;
 
     const filteredProjects = useMemo(() => dashboardProjects.filter(project => {
         const normalizedSearchTerm = searchTerm.trim().toLowerCase();

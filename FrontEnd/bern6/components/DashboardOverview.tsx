@@ -1,25 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Bar, BarChart, CartesianGrid, Cell, Legend,
-  Pie, PieChart, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
-} from 'recharts';
-import { API_BASE_URL, buildFingerprint } from '../services/authApi';
-
-interface BackendDashboardStats {
-    totalProjects: number;
-    byStatus: Record<string, number>;
-    byGrade: Record<string, number>;
-    totalFloorAreaM2: number;
-    averageEui: number | null;
-    recentActivity: Array<{
-        projectId: string;
-        projectName: string;
-        action: string;
-        username: string | null;
-        at: string;
-    }>;
-}
+import React from 'react';
 
 interface DashboardOverviewProps {
     lang: 'zh' | 'en';
@@ -27,7 +6,6 @@ interface DashboardOverviewProps {
     onLanguageChange: () => void;
     onNavigateToAccounts?: () => void;
     onNavigateToProjects?: () => void;
-    onLogout?: () => void;
 }
 
 // Taoyuan Districts Data
@@ -71,46 +49,18 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     onLanguageChange,
     onNavigateToAccounts,
     onNavigateToProjects,
-    onLogout,
 }) => {
     const t = lang === 'zh';
 
-    // ── Backend dashboard stats (fetched on mount) ──
-    const [backendStats, setBackendStats] = useState<BackendDashboardStats | null>(null);
-    const [statsError, setStatsError] = useState<string | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: { 'X-Device-Fingerprint': buildFingerprint() },
-                });
-                if (!res.ok) {
-                    if (!cancelled) setStatsError(`Dashboard stats request failed (HTTP ${res.status}).`);
-                    return;
-                }
-                const body = await res.json() as { ok: boolean; stats: BackendDashboardStats };
-                if (!cancelled && body.ok) setBackendStats(body.stats);
-            } catch (err) {
-                if (!cancelled) setStatsError(err instanceof Error ? err.message : 'Network error loading dashboard stats.');
-            }
-        })();
-        return () => { cancelled = true; };
-    }, []);
-
-    const totalProjects = backendStats?.totalProjects ?? 0;
-    const totalInProgress = backendStats?.byStatus?.UNDER_REVIEW
-        ?? backendStats?.byStatus?.SUBMITTED
-        ?? backendStats?.byStatus?.DRAFT
-        ?? 0;
-    const totalCompleted = backendStats?.byStatus?.APPROVED ?? 0;
-    const totalArea = backendStats ? Math.round(backendStats.totalFloorAreaM2 / 10000) / 100 : 0;
+    // Calculate totals
+    const totalProjects = TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.projects, 0);
+    const totalInProgress = TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.inProgress, 0);
+    const totalCompleted = TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.completed, 0);
+    const totalArea = 967.0; // km²
 
     // Max for bar chart scaling
-    // (maxProjects previously used by inline SVG bar chart — Recharts auto-scales)
-    // (maxYearlyTotal previously used by inline SVG bar chart — Recharts auto-scales)
+    const maxProjects = Math.max(...TAOYUAN_DISTRICTS.map(d => d.projects));
+    const maxYearlyTotal = Math.max(...YEARLY_DATA.map(d => d.total));
 
     return (
         <div className="h-screen flex bg-slate-100 overflow-hidden">
@@ -153,17 +103,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {t ? '帳號管理' : 'Account Management'}
                     </button>
                 </nav>
-
-                {onLogout && (
-                    <div className="p-4 border-t border-slate-100">
-                        <button
-                            onClick={onLogout}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-sm transition-colors"
-                        >
-                            {t ? '登出' : 'Sign Out'}
-                        </button>
-                    </div>
-                )}
             </aside>
 
             {/* Main Content */}
@@ -310,74 +249,79 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                                 </div>
                             </div>
 
-                            {/* Yearly Completion Chart — Recharts */}
+                            {/* Yearly Completion Chart */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <h3 className="text-sm font-black text-slate-800 mb-4">{t ? '人月資源分布' : 'Yearly Resource Distribution'}</h3>
-                                <div className="h-48">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={YEARLY_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                            <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
-                                            <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                                            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} iconSize={10} />
-                                            <Bar dataKey="completed" stackId="a" fill="#10b981" name={t ? '已完成' : 'Completed'} />
-                                            <Bar dataKey="inProgress" stackId="a" fill="#fbbf24" name={t ? '執行中' : 'In Progress'} radius={[6, 6, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                <div className="flex items-end gap-6 h-40">
+                                    {YEARLY_DATA.map((year) => (
+                                        <div key={year.year} className="flex-1 flex flex-col items-center">
+                                            <div className="w-full flex flex-col items-center gap-1">
+                                                <span className="text-[10px] font-bold text-slate-600">{year.total}</span>
+                                                <div className="w-full flex flex-col">
+                                                    {/* Completed portion */}
+                                                    <div
+                                                        className="w-full bg-emerald-500 transition-all"
+                                                        style={{ height: `${(year.completed / maxYearlyTotal) * 100}px` }}
+                                                    />
+                                                    {/* In progress portion */}
+                                                    <div
+                                                        className="w-full bg-amber-400 rounded-t-lg transition-all"
+                                                        style={{ height: `${(year.inProgress / maxYearlyTotal) * 100}px` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] font-medium text-slate-500 mt-2">{year.year}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
-
-                            {/* Comparative Chart — Districts side-by-side */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <h3 className="text-sm font-black text-slate-800 mb-4">{t ? '行政區專案進度比較' : 'District Progress Comparison'}</h3>
-                                <div className="h-56">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={TAOYUAN_DISTRICTS.map(d => ({
-                                                ...d,
-                                                displayName: t ? d.name : d.nameEn,
-                                            }))}
-                                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                            <XAxis dataKey="displayName" tick={{ fontSize: 10, fill: '#64748b' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
-                                            <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                                            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} iconSize={10} />
-                                            <Bar dataKey="completed"  fill="#10b981" name={t ? '已完成' : 'Completed'}  radius={[4,4,0,0]} />
-                                            <Bar dataKey="inProgress" fill="#fbbf24" name={t ? '執行中' : 'In Progress'} radius={[4,4,0,0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                {/* Legend */}
+                                <div className="flex gap-4 mt-4 justify-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-emerald-500 rounded"></div>
+                                        <span className="text-[10px] font-medium text-slate-500">{t ? '已完成' : 'Completed'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-amber-400 rounded"></div>
+                                        <span className="text-[10px] font-medium text-slate-500">{t ? '執行中' : 'In Progress'}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Right Column */}
                         <div className="col-span-4 space-y-6">
-                            {/* Category Pie Chart — Recharts */}
+                            {/* Category Pie Chart */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <h3 className="text-sm font-black text-slate-800 mb-4">{t ? '專案工程分布' : 'Category Distribution'}</h3>
-                                <div className="h-44">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                                            <Pie
-                                                data={CATEGORY_DATA.map(c => ({ ...c, displayName: t ? c.name : c.nameEn }))}
-                                                dataKey="count"
-                                                nameKey="displayName"
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={40}
-                                                outerRadius={70}
-                                                paddingAngle={2}
-                                            >
-                                                {CATEGORY_DATA.map(cat => (
-                                                    <Cell key={cat.id} fill={cat.color} />
-                                                ))}
-                                            </Pie>
-                                        </PieChart>
-                                    </ResponsiveContainer>
+                                {/* Simple pie chart representation */}
+                                <div className="flex items-center justify-center mb-4">
+                                    <div className="relative w-36 h-36">
+                                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                            {CATEGORY_DATA.reduce((acc, cat, idx) => {
+                                                const total = CATEGORY_DATA.reduce((s, c) => s + c.count, 0);
+                                                const percentage = (cat.count / total) * 100;
+                                                const offset = acc.offset;
+                                                acc.elements.push(
+                                                    <circle
+                                                        key={cat.id}
+                                                        cx="18"
+                                                        cy="18"
+                                                        r="15.915"
+                                                        fill="transparent"
+                                                        stroke={cat.color}
+                                                        strokeWidth="3"
+                                                        strokeDasharray={`${percentage} ${100 - percentage}`}
+                                                        strokeDashoffset={-offset}
+                                                    />
+                                                );
+                                                acc.offset += percentage;
+                                                return acc;
+                                            }, { elements: [] as React.ReactElement[], offset: 0 }).elements}
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-lg font-black text-slate-800">{t ? '類別分布' : 'Category'}</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 {/* Legend */}
                                 <div className="space-y-2">

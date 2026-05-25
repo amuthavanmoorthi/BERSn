@@ -1,0 +1,212 @@
+{
+    "constructions": [
+        {
+            "id": "WALL01",
+            "name": "標準RC牆 (Standard RC Wall)",
+            "nameEn": "Standard RC Wall 150mm",
+            "type": "WALL",
+            "layers": [
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                },
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                }
+            ],
+            "U": 3.45
+        },
+        {
+            "id": "WALL02",
+            "name": "隔熱RC牆 (Insulated RC Wall)",
+            "nameEn": "Insulated RC Wall with XPS",
+            "type": "WALL",
+            "layers": [
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                },
+                {
+                    "materialId": "MAT08",
+                    "thickness_mm": 50
+                },
+                {
+                    "materialId": "MAT06",
+                    "thickness_mm": 12
+                }
+            ],
+            "U": 0.58
+        },
+        {
+            "id": "WALL03",
+            "name": "空心磚牆 (Hollow Brick Wall)",
+            "nameEn": "Hollow Brick Wall 200mm",
+            "type": "WALL",
+            "layers": [
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                },
+                {
+                    "materialId": "MAT04",
+                    "thickness_mm": 200
+                },
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                }
+            ],
+            "U": 1.65
+        },
+        {
+            "id": "WALL04",
+            "name": "高性能隔熱牆 (High-Perf Insulated Wall)",
+            "nameEn": "High-Performance Insulated Wall",
+            "type": "WALL",
+            "layers": [
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 15
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                },
+                {
+                    "materialId": "MAT11",
+                    "thickness_mm": 75
+                },
+                {
+                    "materialId": "MAT06",
+                    "thickness_mm": 12
+                }
+            ],
+            "U": 0.30
+        },
+        {
+            "id": "WALL05",
+            "name": "金屬帷幕牆 (Metal Curtain Wall)",
+            "nameEn": "Metal Curtain Wall - Insulated",
+            "type": "WALL",
+            "layers": [
+                {
+                    "materialId": "MAT13",
+                    "thickness_mm": 2
+                },
+                {
+                    "materialId": "MAT09",
+                    "thickness_mm": 100
+                },
+                {
+                    "materialId": "MAT13",
+                    "thickness_mm": 1
+                }
+            ],
+            "U": 0.38
+        },
+        {
+            "id": "ROOF01",
+            "name": "標準RC屋頂 (Standard RC Roof)",
+            "nameEn": "Standard RC Roof Slab",
+            "type": "ROOF",
+            "layers": [
+                {
+                    "materialId": "MAT16",
+                    "thickness_mm": 10
+                },
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 40
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                }
+            ],
+            "U": 3.10
+        },
+        {
+            "id": "ROOF02",
+            "name": "隔熱RC屋頂 (Insulated RC Roof)",
+            "nameEn": "Insulated RC Roof with EPS",
+            "type": "ROOF",
+            "layers": [
+                {
+                    "materialId": "MAT16",
+                    "thickness_mm": 10
+                },
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 40
+                },
+                {
+                    "materialId": "MAT07",
+                    "thickness_mm": 75
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                }
+            ],
+            "U": 0.45
+        },
+        {
+            "id": "ROOF03",
+            "name": "高性能隔熱屋頂 (High-Perf Roof)",
+            "nameEn": "High-Performance Insulated Roof",
+            "type": "ROOF",
+            "layers": [
+                {
+                    "materialId": "MAT16",
+                    "thickness_mm": 10
+                },
+                {
+                    "materialId": "MAT05",
+                    "thickness_mm": 40
+                },
+                {
+                    "materialId": "MAT11",
+                    "thickness_mm": 100
+                },
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                }
+            ],
+            "U": 0.23
+        },
+        {
+            "id": "ROOF04",
+            "name": "綠屋頂 (Green Roof)",
+            "nameEn": "Green Roof System",
+            "type": "ROOF",
+            "layers": [
+                {
+                    "materialId": "MAT01",
+                    "thickness_mm": 150
+                },
+                {
+                    "materialId": "MAT08",
+                    "thickness_mm": 50
+                }
+            ],
+            "U": 0.55,
+            "notes": "Includes vegetation layer benefits"
+        }
+    ],
+    "surfaceResistances": {
+        "Rsi_wall": 0.13,
+        "Rso_wall": 0.04,
+        "Rsi_roof": 0.10,
+        "Rso_roof": 0.04
+    }
+}

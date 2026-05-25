@@ -148,10 +148,6 @@ function hasSavedWorkspaceState(workspace: Project['workspace'] | undefined): bo
     || workspace.elevatorCount !== DB_DEFAULT_WORKSPACE.elevatorCount;
 }
 
-function isDemoProjectId(projectId: string | null): boolean {
-  return Boolean(projectId && projectId.startsWith('demo-'));
-}
-
 const App: React.FC = () => {
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = translations[lang];
@@ -296,7 +292,7 @@ const App: React.FC = () => {
   const [selectedGlazing, setSelectedGlazing] = useState('GLZ_DBL_LOW_E');
 
   const activeObj = objects[0];
-  const isBackendWorkspace = Boolean(activeProjectId && !isDemoProjectId(activeProjectId));
+  const isBackendWorkspace = Boolean(activeProjectId);
   const renderObjects = useMemo(() => {
     const previewRenderObjects = geometryPreview?.renderParams?.objects;
     if (!isBackendWorkspace || !previewRenderObjects?.length) {
@@ -469,7 +465,7 @@ const App: React.FC = () => {
 
   // Load active project from API and seed workspace settings
   useEffect(() => {
-    if (!activeProjectId || isDemoProjectId(activeProjectId)) {
+    if (!activeProjectId) {
       setActiveBackendProject(null);
       return;
     }

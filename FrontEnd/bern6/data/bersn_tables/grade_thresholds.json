@@ -1,0 +1,91 @@
+{
+    "gradeThresholds": [
+        {
+            "grade": "1+",
+            "maxEEI": 0.50,
+            "label": "近零能耗建築",
+            "labelEn": "Near Zero Energy",
+            "color": "#059669"
+        },
+        {
+            "grade": "1",
+            "maxEEI": 0.60,
+            "label": "超低能耗建築",
+            "labelEn": "Ultra Low Energy",
+            "color": "#10b981"
+        },
+        {
+            "grade": "2",
+            "maxEEI": 0.70,
+            "label": "高效能建築",
+            "labelEn": "High Performance",
+            "color": "#22c55e"
+        },
+        {
+            "grade": "3",
+            "maxEEI": 0.80,
+            "label": "優良建築",
+            "labelEn": "Excellent",
+            "color": "#84cc16"
+        },
+        {
+            "grade": "4",
+            "maxEEI": 1.00,
+            "label": "合格建築",
+            "labelEn": "Compliant",
+            "color": "#eab308"
+        },
+        {
+            "grade": "5",
+            "maxEEI": 1.20,
+            "label": "待改善",
+            "labelEn": "Needs Improvement",
+            "color": "#f97316"
+        },
+        {
+            "grade": "6",
+            "maxEEI": 1.50,
+            "label": "高能耗",
+            "labelEn": "High Energy Use",
+            "color": "#ef4444"
+        },
+        {
+            "grade": "7",
+            "maxEEI": 999,
+            "label": "極高能耗",
+            "labelEn": "Very High Energy Use",
+            "color": "#dc2626"
+        }
+    ],
+    "scoringFormulas": {
+        "highPerformance": {
+            "condition": "EEI <= 0.8",
+            "formula": "50 + 40 * (0.8 - EEI) / 0.3",
+            "description": "Score for high-performance buildings (EEI ≤ 0.8)"
+        },
+        "standard": {
+            "condition": "EEI > 0.8",
+            "formula": "50 * (2.0 - EEI) / 1.2",
+            "description": "Score for standard buildings (EEI > 0.8)"
+        }
+    },
+    "euiScaleFormulas": {
+        "EUIn": "UR × (0.5 × (AEUI + LEUI + EtEUI + HpEUI) + EEUI)",
+        "EUIg": "UR × (0.8 × (AEUI + LEUI + EtEUI + HpEUI) + EEUI)",
+        "EUIm": "UR × (1.0 × (AEUI + LEUI + EtEUI + HpEUI) + EEUI)",
+        "EUImax": "UR × (2.0 × (AEUI + LEUI + EtEUI + HpEUI) + EEUI)"
+    },
+    "weightFormulas": {
+        "withoutDHW": {
+            "a": "AEUI / (EtEUI + AEUI + LEUI)",
+            "b": "LEUI / (EtEUI + AEUI + LEUI)",
+            "c": "EtEUI / (EtEUI + AEUI + LEUI)"
+        },
+        "withDHW": {
+            "a": "AEUI / (AEUI + LEUI + EtEUI + HpEUI)",
+            "b": "LEUI / (AEUI + LEUI + EtEUI + HpEUI)",
+            "c": "EtEUI / (AEUI + LEUI + EtEUI + HpEUI)",
+            "d": "HpEUI / (AEUI + LEUI + EtEUI + HpEUI)"
+        }
+    }
+}

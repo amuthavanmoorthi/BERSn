@@ -1,0 +1,65 @@
+{
+    "systemTypes": [
+        {
+            "id": "DHW01",
+            "name": "電熱水器 (Electric)",
+            "nameEn": "Electric Water Heater",
+            "EHW": 0.90,
+            "COP": 1.0,
+            "fuelType": "ELECTRIC"
+        },
+        {
+            "id": "DHW02",
+            "name": "瓦斯熱水器 (Gas)",
+            "nameEn": "Gas Water Heater",
+            "EHW": 0.70,
+            "fuelType": "GAS",
+            "efficiency": 0.85
+        },
+        {
+            "id": "DHW03",
+            "name": "熱泵熱水器 (Heat Pump)",
+            "nameEn": "Heat Pump Water Heater",
+            "EHW": 0.35,
+            "COP": 3.0,
+            "fuelType": "ELECTRIC"
+        },
+        {
+            "id": "DHW04",
+            "name": "太陽能熱水系統 (Solar)",
+            "nameEn": "Solar Water Heating",
+            "EHW": 0.25,
+            "solarFraction": 0.70,
+            "fuelType": "SOLAR"
+        },
+        {
+            "id": "DHW05",
+            "name": "中央鍋爐系統 (Central Boiler)",
+            "nameEn": "Central Boiler System",
+            "EHW": 0.75,
+            "fuelType": "GAS",
+            "efficiency": 0.80
+        },
+        {
+            "id": "DHW06",
+            "name": "複合式系統 (Hybrid)",
+            "nameEn": "Hybrid Solar + Heat Pump",
+            "EHW": 0.20,
+            "solarFraction": 0.50,
+            "COP": 2.5,
+            "fuelType": "HYBRID"
+        }
+    ],
+    "hotWaterDemand_L_day_m2": {
+        "HOTEL": 150,
+        "HOSPITAL": 100,
+        "RESIDENTIAL": 50,
+        "RESTAURANT": 80,
+        "OFFICE": 5,
+        "SCHOOL": 3
+    },
+    "operatingHoursPerDay": 8,
+    "daysPerYear": 365,
+    "loadFactor": 0.7,
+    "notes": "HpEUI = (HPC_kW × 8.0 × 365 × 0.7) / AFe"
+}

@@ -217,6 +217,11 @@ const ReportView: React.FC<ReportViewProps> = ({ baseline, kpis, geometryPreview
                 </div>
               ))}
             </div>
+            <p className="mt-4 text-[10px] text-slate-500 leading-relaxed border-l-2 border-blue-200 pl-3">
+              {lang === 'zh'
+                ? '精度說明：SCOREEE 以全精度 EEI 計算（不於計算過程中四捨五入至小數第二位），畫面與報表顯示一律取至小數第一位；完整未捨入值請見證據軌跡 (calc trace)。'
+                : 'Precision policy: SCOREEE is computed from the full-precision EEI value (no rounding to 2 decimal places during the calculation). On-screen and report values are rounded to 1 decimal place; the raw un-rounded values are recorded in the evidence trace (calc trace).'}
+            </p>
           </section>
 
           <section className="mb-16">

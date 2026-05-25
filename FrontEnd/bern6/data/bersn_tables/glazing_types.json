@@ -1,0 +1,90 @@
+{
+    "glazingTypes": [
+        {
+            "id": "GL01",
+            "name": "單層普通玻璃 (Single Clear)",
+            "nameEn": "Single Clear Glass 6mm",
+            "U": 5.8,
+            "eta": 0.82,
+            "VLT": 0.88,
+            "thickness_mm": 6
+        },
+        {
+            "id": "GL02",
+            "name": "單層反射玻璃 (Single Reflective)",
+            "nameEn": "Single Reflective Glass 6mm",
+            "U": 5.5,
+            "eta": 0.50,
+            "VLT": 0.35,
+            "thickness_mm": 6
+        },
+        {
+            "id": "GL03",
+            "name": "單層Low-E玻璃 (Single Low-E)",
+            "nameEn": "Single Low-E Glass 6mm",
+            "U": 4.2,
+            "eta": 0.55,
+            "VLT": 0.72,
+            "thickness_mm": 6
+        },
+        {
+            "id": "GL04",
+            "name": "複層普通玻璃 (Double Clear)",
+            "nameEn": "Double Clear IGU 6+12A+6",
+            "U": 2.8,
+            "eta": 0.70,
+            "VLT": 0.78,
+            "thickness_mm": 24
+        },
+        {
+            "id": "GL05",
+            "name": "複層Low-E玻璃 (Double Low-E)",
+            "nameEn": "Double Low-E IGU 6+12A+6",
+            "U": 1.8,
+            "eta": 0.42,
+            "VLT": 0.65,
+            "thickness_mm": 24
+        },
+        {
+            "id": "GL06",
+            "name": "複層高性能Low-E (High-perf Low-E)",
+            "nameEn": "High-Performance Low-E IGU",
+            "U": 1.4,
+            "eta": 0.28,
+            "VLT": 0.55,
+            "thickness_mm": 24
+        },
+        {
+            "id": "GL07",
+            "name": "三層玻璃 (Triple Glazing)",
+            "nameEn": "Triple Glazing IGU",
+            "U": 1.0,
+            "eta": 0.35,
+            "VLT": 0.58,
+            "thickness_mm": 36
+        },
+        {
+            "id": "GL08",
+            "name": "遮陽複層玻璃 (Tinted Double)",
+            "nameEn": "Tinted Double IGU",
+            "U": 2.6,
+            "eta": 0.45,
+            "VLT": 0.45,
+            "thickness_mm": 24
+        },
+        {
+            "id": "GL09",
+            "name": "電致變色玻璃 (Electrochromic)",
+            "nameEn": "Electrochromic Smart Glass",
+            "U": 1.6,
+            "eta": 0.15,
+            "VLT": 0.50,
+            "thickness_mm": 28
+        }
+    ],
+    "notes": {
+        "U": "Thermal transmittance in W/(m²·K)",
+        "eta": "Solar Heat Gain Coefficient (SHGC/ηi)",
+        "VLT": "Visible Light Transmittance"
+    }
+}
