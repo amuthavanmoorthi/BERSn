@@ -83,6 +83,9 @@ export interface ProjectBaseline {
       numElevators: number;
       energyPerCycle: number;
       yearlyHours: number;
+      /** Per-elevator overrides — each unit carries its own Et (+ optional Eelj/YOHj).
+       *  Absent/empty → the single-type fields above apply to all elevators. */
+      units?: { et: number; nej?: number; eelj: number; yohj: number }[];
     };
     dhw: {
       hasDhw: boolean;
@@ -160,8 +163,10 @@ export interface GeometryObject {
     height: number;
     azimuth: number;  // 方位角 (Orientation) in degrees
     wwr?: number;
+    wwrByFace?: Record<string, number>;
     glassType?: GlassType;
     shadingType?: ShadingType;
+    noWindowFaces?: string[];
 
     // Box (長方體/稜柱體) parameters
     width?: number;   // 寬度
@@ -248,15 +253,20 @@ export interface FloorShape {
     extrudeHeight?: number;
     isClosed?: boolean;
     // Facade
+    /** Fallback/default WWR used when a face has no override in wwrByFace. */
     wwr?: number;
+    /** Per-face WWR override. Same face keys as noWindowFaces. Faces not present
+     *  here fall back to `wwr`. Round faces (cylinder / ellipse 'side') only
+     *  ever have one key since there's no natural edge boundary to split on. */
+    wwrByFace?: Record<string, number>;
     glassType?: GlassType;
     shadingType?: ShadingType;
     /** Optional brush color (hex e.g. '#ff8866') overriding the default white facade. */
     color?: string;
     /** Face keys that should NOT have windows (treated as solid wall). Keys depend on shape type:
      *  - box: 'N','E','S','W'
-     *  - polyline / lShape / tShape: 'edge-0','edge-1',...
-     *  - cylinder / polygon / ellipse: 'side'
+     *  - polyline / lShape / tShape / polygon: 'edge-0','edge-1',...
+     *  - cylinder / ellipse: 'side'
      *  - arc / fan: 'outer','inner','side1','side2' */
     noWindowFaces?: string[];
     /**
@@ -328,6 +338,8 @@ export interface EnergyKPIs {
   euiG: number;
   euiM: number;
   euiMax: number;
+  /** EUI* (Eq. 3.21) — standardized EUI that ESR is derived from. NaN if no backend snapshot. */
+  euiStar?: number;
   afe: number;
   metrics: GeometryMetrics;
   weights: {
@@ -355,6 +367,7 @@ export interface EnergyKPIs {
     leui: number;
     eeui: number;
     es: number;
+    elWasClamped?: boolean;
   };
   breakdown: {
     hvac: number;
@@ -362,4 +375,19 @@ export interface EnergyKPIs {
     elevator: number;
     dhw?: number;
   };
+  // --- Optional extras surfaced by the backend CalcEngine preview ---
+  // Consumed by CalculationBreakdownPanel (loosely typed). The local fallback
+  // engine leaves these undefined, so the panel keeps its existing defaults
+  // until an authoritative backend result is mapped in.
+  af?: number;          // Total floor area AF (before exemptions)
+  exemptTotal?: number; // Σ Afk — total exempt area
+  eev?: number;         // Envelope efficiency value (EEV)
+  // Envelope efficiency inputs (Step 2 display) — the selected construction's
+  // properties that feed EEV = Σ(U·A·η·Ki)/ΣA. Populated from the backend
+  // envelope summary; undefined renders as "—" rather than a fake constant.
+  wallU?: number;       // Wall U-value (W/m²·K)
+  roofU?: number;       // Roof U-value (W/m²·K)
+  glassU?: number;      // Glazing U-value Ug (W/m²·K)
+  glassEta?: number;    // Glazing solar transmittance ηi
+  shadingKi?: number;   // Shading coefficient Ki
 }

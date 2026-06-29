@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Floor, FloorShape, GeometryType, LShapeDirection, TShapeWingPosition, PolylinePoint } from '../types';
+import { getFaceSpecs, FaceToggleSpec } from '../utils/faceSpecs';
 
 interface FloorManagerPanelProps {
   floors: Floor[];
@@ -729,25 +730,16 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
                               }}
                             />
 
-                            {/* Per-shape WWR */}
-                            <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                              <span className="text-[13px] font-black text-orange-400 shrink-0">{t ? '開窗率' : 'WWR'}</span>
-                              <input
-                                type="range"
-                                min={5}
-                                max={90}
-                                step={1}
-                                value={(shape.params.wwr ?? 0.35) * 100}
-                                onChange={(e) => {
-                                  const newWwr = parseInt(e.target.value) / 100;
-                                  updateShapeParams(floor.id, shape.id, { wwr: newWwr });
-                                }}
-                                className="flex-1 h-1 appearance-none bg-[color:var(--color-bg)] rounded-full cursor-pointer accent-orange-500"
-                              />
-                              <span className="text-[12px] font-black text-orange-300 min-w-[32px] text-right">
-                                {((shape.params.wwr ?? 0.35) * 100).toFixed(0)}%
-                              </span>
-                            </div>
+                            {/* Per-face WWR — each face of the shape gets its own window ratio. */}
+                            <PerFaceWwrSliders
+                              shape={shape}
+                              lang={lang}
+                              onChange={(faceKey, newWwr) => {
+                                updateShapeParams(floor.id, shape.id, {
+                                  wwrByFace: { ...shape.params.wwrByFace, [faceKey]: newWwr },
+                                });
+                              }}
+                            />
 
                             {/* Per-shape Glazing & Shading override */}
                             <div className="grid grid-cols-2 gap-2">
@@ -856,53 +848,6 @@ const FloorManagerPanel: React.FC<FloorManagerPanelProps> = ({
 
 // ----- Per-face no-window toggles ---------------------------------------
 
-interface FaceToggleSpec { key: string; label: string; }
-
-const getFaceSpecs = (shape: FloorShape, lang: 'zh' | 'en'): FaceToggleSpec[] => {
-  const t = lang === 'zh';
-  const p = shape.params;
-  switch (shape.type) {
-    case 'box':
-      return [
-        { key: 'N', label: t ? '北 N' : 'N' },
-        { key: 'E', label: t ? '東 E' : 'E' },
-        { key: 'S', label: t ? '南 S' : 'S' },
-        { key: 'W', label: t ? '西 W' : 'W' },
-      ];
-    case 'cylinder':
-    case 'polygon':
-    case 'ellipse':
-      return [{ key: 'side', label: t ? '曲面' : 'Curve' }];
-    case 'arc':
-      return [
-        { key: 'outer', label: t ? '外弧' : 'Outer' },
-        { key: 'inner', label: t ? '內弧' : 'Inner' },
-        { key: 'side1', label: t ? '邊1' : 'Side 1' },
-        { key: 'side2', label: t ? '邊2' : 'Side 2' },
-      ];
-    case 'fan': {
-      const annular = (p.innerRadius ?? 0) > 0.01;
-      const base = [
-        { key: 'outer', label: t ? '外弧' : 'Outer' },
-        { key: 'side1', label: t ? '邊1' : 'Side 1' },
-        { key: 'side2', label: t ? '邊2' : 'Side 2' },
-      ];
-      return annular ? [...base, { key: 'inner', label: t ? '內弧' : 'Inner' }] : base;
-    }
-    case 'polyline': {
-      const n = p.points?.length ?? 0;
-      return Array.from({ length: n }, (_, i) => ({ key: `edge-${i}`, label: `${t ? '邊' : 'E'}${i + 1}` }));
-    }
-    case 'lShape':
-    case 'tShape': {
-      const n = shape.type === 'lShape' ? 6 : 8;
-      return Array.from({ length: n }, (_, i) => ({ key: `edge-${i}`, label: `${t ? '邊' : 'E'}${i + 1}` }));
-    }
-    default:
-      return [];
-  }
-};
-
 const NoWindowFaceToggles: React.FC<{
   shape: FloorShape;
   lang: 'zh' | 'en';
@@ -936,6 +881,43 @@ const NoWindowFaceToggles: React.FC<{
           );
         })}
       </div>
+    </div>
+  );
+};
+
+const PerFaceWwrSliders: React.FC<{
+  shape: FloorShape;
+  lang: 'zh' | 'en';
+  onChange: (faceKey: string, wwr: number) => void;
+}> = ({ shape, lang, onChange }) => {
+  const t = lang === 'zh';
+  const specs = getFaceSpecs(shape, lang);
+  if (specs.length === 0) return null;
+  return (
+    <div className="space-y-1 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+      <div className="text-[11px] font-black text-orange-400 uppercase tracking-wide">
+        {t ? '開窗率（每面）' : 'WWR (per face)'}
+      </div>
+      {specs.map(s => {
+        const wwr = shape.params.wwrByFace?.[s.key] ?? shape.params.wwr ?? 0.35;
+        return (
+          <div key={s.key} className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-orange-300 shrink-0 w-10">{s.label}</span>
+            <input
+              type="range"
+              min={5}
+              max={90}
+              step={1}
+              value={wwr * 100}
+              onChange={(e) => onChange(s.key, parseInt(e.target.value) / 100)}
+              className="flex-1 h-1 appearance-none bg-[color:var(--color-bg)] rounded-full cursor-pointer accent-orange-500"
+            />
+            <span className="text-[12px] font-black text-orange-300 min-w-[32px] text-right">
+              {(wwr * 100).toFixed(0)}%
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };

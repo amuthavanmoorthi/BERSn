@@ -304,6 +304,14 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   floorsRef.current = floors;
   const selectedFloorIdRef = useRef(selectedFloorId);
   selectedFloorIdRef.current = selectedFloorId;
+  // gridSize / snapToGrid change when the user clicks the 0.5m/1m/2m/5m
+  // buttons, but the mousedown/mousemove listeners are attached once in a
+  // mount-only effect — without refs they'd keep snapping against the
+  // gridSize that was current at mount time.
+  const gridSizeRef = useRef(gridSize);
+  gridSizeRef.current = gridSize;
+  const snapToGridRef = useRef(snapToGrid);
+  snapToGridRef.current = snapToGrid;
   const snapKindRef = useRef<'none' | 'vertex' | 'edge' | 'grid'>('none');
 
   const createFacadeTexture = (wwr: number = 0.3, shadingType: string = 'None') => {
@@ -501,7 +509,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   // for each quad (0..actualN-1). Using actual quad count from geometry avoids
   // missing/extra triangles when the contour edge count differs from prediction.
   const buildExtrudeMaterialsByEdge = (
-    geo: THREE.ExtrudeGeometry,
+    geo: THREE.BufferGeometry,
     expectedN: number,
     capMat: THREE.Material,
     perEdgeMats: THREE.Material[],
@@ -536,7 +544,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   const buildShapeMesh = (
     shape: { type: string; params: Record<string, any> },
     height: number,
-    facadeMat: THREE.Material,
+    makeFacadeMat: (faceKey: string) => THREE.Material,
     wallOnlyMat: THREE.Material,
     roofMat: THREE.Material,
     floorMat: THREE.Material,
@@ -545,13 +553,25 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   ): THREE.Group => {
     const group = new THREE.Group();
     const p = shape.params;
-    const pick = (key: string): THREE.Material => noWindowFaces.has(key) ? wallOnlyMat : facadeMat;
+    // Each face gets its own facade material (own WWR-driven texture), built
+    // lazily and cached per call so a face used multiple times (shouldn't
+    // happen, but cheap to guard) doesn't regenerate its canvas texture.
+    const facadeCache = new Map<string, THREE.Material>();
+    const pick = (key: string): THREE.Material => {
+      if (noWindowFaces.has(key)) return wallOnlyMat;
+      let mat = facadeCache.get(key);
+      if (!mat) {
+        mat = makeFacadeMat(key);
+        facadeCache.set(key, mat);
+      }
+      return mat;
+    };
 
     // 變形 (bbox-cage) bake takes precedence — the snapshot in params.bakedGeometry
     // is the source of truth once a shape has been deformed. Parametric inputs
     // are bypassed entirely so vertex remaps survive re-renders.
     if (p.bakedGeometry) {
-      return buildBakedGroup(p.bakedGeometry, [facadeMat]);
+      return buildBakedGroup(p.bakedGeometry, [pick('side')]);
     }
 
     switch (shape.type) {
@@ -590,8 +610,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
               depth: height, bevelEnabled: false, UVGenerator: FACADE_UV_GEN,
             });
             const N = p.points.length;
-            const pickF = (k: string): THREE.Material => noWindowFaces.has(k) ? wallOnlyMat : facadeMat;
-            const perEdgeMats = Array.from({ length: N }, (_, i) => pickF(`edge-${i}`));
+            const perEdgeMats = Array.from({ length: N }, (_, i) => pick(`edge-${i}`));
             const capMat = isTopFloor ? roofMat : floorMat;
             const materials = buildExtrudeMaterialsByEdge(geo, N, capMat, perEdgeMats);
             const mesh = new THREE.Mesh(geo, materials);
@@ -660,8 +679,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
               depth: height, bevelEnabled: false, UVGenerator: FACADE_UV_GEN,
             });
             const N = p.points.length;
-            const pickF = (k: string): THREE.Material => noWindowFaces.has(k) ? wallOnlyMat : facadeMat;
-            const perEdgeMats = Array.from({ length: N }, (_, i) => pickF(`edge-${i}`));
+            const perEdgeMats = Array.from({ length: N }, (_, i) => pick(`edge-${i}`));
             const capMat = isTopFloor ? roofMat : floorMat;
             const materials = buildExtrudeMaterialsByEdge(geo, N, capMat, perEdgeMats);
             const mesh = new THREE.Mesh(geo, materials);
@@ -823,12 +841,17 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
       }
 
       case 'polygon': {
+        // Unlike cylinder/ellipse, a polygon has N flat edges (not a
+        // continuous curve), so each edge gets its own material/WWR — same
+        // per-edge split used for lShape/tShape/polyline.
         const sides = p.sides || 6;
         const circumR = p.circumradius || 20;
         const startAng = (p.startAngle || 0) * Math.PI / 180;
-        const sideMat = pick('side');
         const geo = new THREE.CylinderGeometry(circumR, circumR, height, sides);
-        const mesh = new THREE.Mesh(geo, [sideMat, isTopFloor ? roofMat : floorMat, floorMat]);
+        const perEdgeMats = Array.from({ length: sides }, (_, i) => pick(`edge-${i}`));
+        const capMat = isTopFloor ? roofMat : floorMat;
+        const materials = buildExtrudeMaterialsByEdge(geo, sides, capMat, perEdgeMats);
+        const mesh = new THREE.Mesh(geo, materials);
         mesh.position.y = height / 2;
         mesh.rotation.y = startAng;
         group.add(mesh);
@@ -1162,7 +1185,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
                 if (isPlacing) return sh.id !== stShapeId;
                 return true;
               });
-              const SNAP_M = snapRadius(gridSize);
+              const SNAP_M = snapRadius(gridSizeRef.current);
               let bestVertex: { x: number; z: number } | null = null;
               let bestVertexDist = SNAP_M;
               for (const sh of candidates) {
@@ -1173,9 +1196,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
               }
               let bestGrid: { x: number; z: number } | null = null;
               let bestGridDist = Infinity;
-              if (snapToGrid) {
-                const gx = Math.round(world.x / gridSize) * gridSize;
-                const gz = Math.round(world.z / gridSize) * gridSize;
+              if (snapToGridRef.current) {
+                const gs = gridSizeRef.current;
+                const gx = Math.round(world.x / gs) * gs;
+                const gz = Math.round(world.z / gs) * gs;
                 bestGrid = { x: gx, z: gz };
                 bestGridDist = Math.hypot(gx - world.x, gz - world.z);
               }
@@ -1263,7 +1287,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           // noise. With GAIN=0.5 + STEP=1m the cursor must travel ~2 m to
           // advance 1 m of cage edge — half-speed feel, click-stop steps.
           const GAIN = 0.5;
-          const STEP = 1;
+          const STEP = snapToGridRef.current ? gridSizeRef.current : 1;
           const quantize = (d: number) => Math.round((d * GAIN) / STEP) * STEP;
           const rawDx = proj.x - da.startCursorXZ.x;
           const rawDz = proj.z - da.startCursorXZ.z;
@@ -1272,6 +1296,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           const dOnAxis = quantize(isXAxis ? rawDx : rawDz);
           const newBbox = { ...da.startBboxXZ };
           const MIN_SIZE = 0.5;  // prevent collapse / inversion
+          // Snap the moved edge to an absolute grid line (not just a relative
+          // step from the drag's start position) so the handle visually locks
+          // to the same grid the rest of the viewer snaps to.
+          const snapEdge = (v: number) => (snapToGridRef.current ? Math.round(v / gridSizeRef.current) * gridSizeRef.current : v);
           // Handle-follows-cursor: each cage edge tracks the cursor's world
           // position along the handle's axis. Drag the +X handle in the +X
           // world direction → +X edge moves +X (cage grows east). Drag the
@@ -1279,10 +1307,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           // grows west). All four handles symmetric — each one extends
           // *outward* in its own normal direction.
           switch (da.axis) {
-            case '+x': newBbox.maxX = Math.max(newBbox.minX + MIN_SIZE, da.startBboxXZ.maxX + dOnAxis); break;
-            case '-x': newBbox.minX = Math.min(newBbox.maxX - MIN_SIZE, da.startBboxXZ.minX + dOnAxis); break;
-            case '+z': newBbox.maxZ = Math.max(newBbox.minZ + MIN_SIZE, da.startBboxXZ.maxZ + dOnAxis); break;
-            case '-z': newBbox.minZ = Math.min(newBbox.maxZ - MIN_SIZE, da.startBboxXZ.minZ + dOnAxis); break;
+            case '+x': newBbox.maxX = Math.max(newBbox.minX + MIN_SIZE, snapEdge(da.startBboxXZ.maxX + dOnAxis)); break;
+            case '-x': newBbox.minX = Math.min(newBbox.maxX - MIN_SIZE, snapEdge(da.startBboxXZ.minX + dOnAxis)); break;
+            case '+z': newBbox.maxZ = Math.max(newBbox.minZ + MIN_SIZE, snapEdge(da.startBboxXZ.maxZ + dOnAxis)); break;
+            case '-z': newBbox.minZ = Math.min(newBbox.maxZ - MIN_SIZE, snapEdge(da.startBboxXZ.minZ + dOnAxis)); break;
           }
           const live = floorsRef.current ?? [];
           const f = live.find(f => f.id === da.floorId);
@@ -1325,7 +1353,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
               if (isPlacing) return sh.id !== stShapeId;
               return true;
             });
-            const SNAP_M = snapRadius(gridSize);
+            const SNAP_M = snapRadius(gridSizeRef.current);
             // Vertex candidate
             let bestVertex: { x: number; z: number } | null = null;
             let bestVertexDist = SNAP_M;
@@ -1338,9 +1366,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
             // Grid candidate
             let bestGrid: { x: number; z: number } | null = null;
             let bestGridDist = Infinity;
-            if (snapToGrid) {
-              const gx = Math.round(world.x / gridSize) * gridSize;
-              const gz = Math.round(world.z / gridSize) * gridSize;
+            if (snapToGridRef.current) {
+              const gs = gridSizeRef.current;
+              const gx = Math.round(world.x / gs) * gs;
+              const gz = Math.round(world.z / gs) * gs;
               bestGrid = { x: gx, z: gz };
               bestGridDist = Math.hypot(gx - world.x, gz - world.z);
             }
@@ -2315,6 +2344,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
     if (floors && floors.length > 0) {
       let yOffset = 0;
+      // Per-column vertical stacking: each shape stacks on the same-index shape
+      // on the floor below (not on the floor's tallest mass), so a copied shorter
+      // shape sits flush on its own column instead of floating with a gap.
+      const columnTopY: Record<string, number> = {};
       let maxBuildingW = 40, maxBuildingD = 30;
 
       // CAD-style isolate-on-selection: when a floor or shape is selected (or
@@ -2404,11 +2437,9 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
         // Shapes
         console.log(`[ThreeDViewer] Floor "${floor.name}" (${floor.id}): ${floor.shapes.length} shapes`, floor.shapes.map(s => ({ id: s.id, type: s.type, hasPoints: !!(s.params.points?.length) })));
-        floor.shapes.forEach(shape => {
+        floor.shapes.forEach((shape, shapeIndex) => {
           try {
-          const wwr = shape.params.wwr ?? 0.35;
           const shadingType = shape.params.shadingType || 'None';
-          const texture = createFacadeTexture(wwr, shadingType);
           const isSelectedShape = shape.id === selectedShapeId;
 
           // Brush color (if set on shape) overrides the default selection-based facade tint.
@@ -2416,7 +2447,13 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           const facadeColor = brushColorHex
             ? new THREE.Color(brushColorHex).getHex()
             : (isSelectedFloor ? (isSelectedShape ? 0xbfdbfe : 0xdbeafe) : 0xffffff);
-          const facadeMat = new THREE.MeshPhongMaterial({ map: texture, color: facadeColor });
+          // Each face can override the shape's default WWR via wwrByFace, so
+          // every face gets its own texture sized to its own window ratio.
+          const makeFacadeMat = (faceKey: string): THREE.Material => {
+            const faceWwr = shape.params.wwrByFace?.[faceKey] ?? shape.params.wwr ?? 0.35;
+            const tex = createFacadeTexture(faceWwr, shadingType);
+            return new THREE.MeshPhongMaterial({ map: tex, color: facadeColor });
+          };
           const wallOnlyTex = createWallOnlyTexture();
           const wallOnlyMat = new THREE.MeshPhongMaterial({ map: wallOnlyTex, color: facadeColor });
           const roofMat = new THREE.MeshPhongMaterial({ color: isTopFloor ? 0x94a3b8 : 0xadb5bd, flatShading: true });
@@ -2429,7 +2466,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           const shapeHeight = (shape.type === 'polyline'
             ? (shape.params as any).extrudeHeight
             : (shape.params as any).height) ?? floor.floorHeight;
-          const shapeGroup = buildShapeMesh({ type: shape.type, params: shape.params }, shapeHeight, facadeMat, wallOnlyMat, roofMat, floorMat, isTopFloor, noWindowFaces);
+          const shapeGroup = buildShapeMesh({ type: shape.type, params: shape.params }, shapeHeight, makeFacadeMat, wallOnlyMat, roofMat, floorMat, isTopFloor, noWindowFaces);
           // All shapes (including polyline extrusions) belong to 主體模型.
           // 平面 = per-floor XZ working plane (gridHelper + snap dots), toggled separately.
           shapeGroup.userData = { floorId: floor.id, shapeId: shape.id, layerKey: 'mainModel' };
@@ -2442,7 +2479,15 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
             child.userData = { ...child.userData, floorId: floor.id, shapeId: shape.id };
           });
 
+          // Stack this shape on the same-index column below it. columnBaseY is the
+          // top of that column (or the floor base for a brand-new column). The
+          // floorGroup already sits at yOffset, so subtract it for the local offset.
+          const columnKey = `col-${shapeIndex}`;
+          const columnBaseY = columnTopY[columnKey] ?? yOffset;
+          columnTopY[columnKey] = columnBaseY + shapeHeight;
+
           shapeGroup.position.x = shape.position.x;
+          shapeGroup.position.y = columnBaseY - yOffset;
           shapeGroup.position.z = shape.position.y;
           shapeGroup.rotation.y = -(shape.rotation * Math.PI) / 180;
 
@@ -2534,17 +2579,19 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
       // Legacy mode
       objects.forEach(obj => {
         const p = obj.params;
-        const wwr = p.wwr || 0.3;
         const shadingType = p.shadingType || 'None';
-        const texture = createFacadeTexture(wwr, shadingType);
-        const facadeMat = new THREE.MeshPhongMaterial({ map: texture, color: 0xffffff });
+        const makeFacadeMat = (faceKey: string): THREE.Material => {
+          const faceWwr = p.wwrByFace?.[faceKey] ?? p.wwr ?? 0.3;
+          const tex = createFacadeTexture(faceWwr, shadingType);
+          return new THREE.MeshPhongMaterial({ map: tex, color: 0xffffff });
+        };
         const wallOnlyTex = createWallOnlyTexture();
         const wallOnlyMat = new THREE.MeshPhongMaterial({ map: wallOnlyTex, color: 0xffffff });
         const roofMat = new THREE.MeshPhongMaterial({ color: 0x94a3b8, flatShading: true });
         const floorMat = new THREE.MeshPhongMaterial({ color: 0xe2e8f0, flatShading: true });
         const noWindowFaces = new Set<string>(obj.params.noWindowFaces || []);
 
-        const shapeGroup = buildShapeMesh({ type: obj.type, params: obj.params }, obj.params.height, facadeMat, wallOnlyMat, roofMat, floorMat, true, noWindowFaces);
+        const shapeGroup = buildShapeMesh({ type: obj.type, params: obj.params }, obj.params.height, makeFacadeMat, wallOnlyMat, roofMat, floorMat, true, noWindowFaces);
         shapeGroup.rotation.y = -(p.azimuth * Math.PI) / 180;
         objectsGroupRef.current?.add(shapeGroup);
       });
