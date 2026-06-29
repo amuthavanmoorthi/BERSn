@@ -50,10 +50,13 @@ services:
       AUTH_COOKIE_SAME_SITE: lax
       AUTH_WEBAUTHN_RP_ID: "localhost"
       AUTH_WEBAUTHN_ORIGINS: "http://localhost:3002,http://localhost:3000,http://localhost:5173,http://localhost:5174"
-      AUTH_BOOTSTRAP_ADMIN_USERNAME: "admin"
-      AUTH_BOOTSTRAP_ADMIN_PASSWORD: "Taoyuan@2026Platform!"
+      # Legacy bootstrap admin is intentionally disabled; the canonical
+      # SYS_ADMIN account is provisioned by `db:seed-rbac`
+      # (src/scripts/seedRbacAccounts.ts) which runs after migrations.
+      AUTH_BOOTSTRAP_ADMIN_USERNAME: ""
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ""
       AUTH_BOOTSTRAP_ADMIN_ROLE: "SYS_ADMIN"
-      AUTH_BOOTSTRAP_ADMIN_FORCE: "true"
+      AUTH_BOOTSTRAP_ADMIN_FORCE: "false"
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-BERSn Local <no-reply@localhost>}
       AUTH_EMAIL_LOG_ONLY: ${AUTH_EMAIL_LOG_ONLY:-true}
       AUTH_SMTP_HOST: ${AUTH_SMTP_HOST:-}

@@ -1,0 +1,249 @@
+{
+    "measures": [
+        {
+            "id": "M01",
+            "name": "高效玻璃升級 (High-Perf Glazing)",
+            "nameEn": "Upgrade to High-Performance Low-E Glazing",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "eta",
+                "windowU"
+            ],
+            "newValues": {
+                "glazingTypeId": "GL06"
+            },
+            "deltaEEV": -0.15,
+            "unitCost_TWD_m2": 3500,
+            "costBasis": "windowArea",
+            "eligibility": {
+                "minWWR": 0.15
+            },
+            "description": "Replace standard glazing with high-performance Low-E double glazing"
+        },
+        {
+            "id": "M02",
+            "name": "外遮陽系統 (External Shading)",
+            "nameEn": "Add External Shading System",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "Ki"
+            ],
+            "newValues": {
+                "shadingTypeId": "SH03"
+            },
+            "deltaEEV": -0.12,
+            "unitCost_TWD_m2": 4500,
+            "costBasis": "windowArea",
+            "eligibility": {
+                "orientations": [
+                    "S",
+                    "E",
+                    "W"
+                ]
+            },
+            "description": "Install egg-crate external shading on sun-exposed facades"
+        },
+        {
+            "id": "M03",
+            "name": "屋頂隔熱升級 (Roof Insulation)",
+            "nameEn": "Upgrade Roof Insulation",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "roofU"
+            ],
+            "newValues": {
+                "roofConstructionId": "ROOF03"
+            },
+            "deltaEEV": -0.08,
+            "unitCost_TWD_m2": 1200,
+            "costBasis": "roofArea",
+            "description": "Upgrade to high-performance insulated roof"
+        },
+        {
+            "id": "M04",
+            "name": "外牆隔熱升級 (Wall Insulation)",
+            "nameEn": "Upgrade Wall Insulation",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "wallU"
+            ],
+            "newValues": {
+                "wallConstructionId": "WALL04"
+            },
+            "deltaEEV": -0.10,
+            "unitCost_TWD_m2": 2000,
+            "costBasis": "facadeArea",
+            "description": "Add external insulation to wall system"
+        },
+        {
+            "id": "M05",
+            "name": "高效空調系統 (High-Eff HVAC)",
+            "nameEn": "Upgrade to High-Efficiency HVAC",
+            "category": "HVAC",
+            "impactedParams": [
+                "EAC"
+            ],
+            "newValues": {
+                "hvacSystemId": "HVAC02"
+            },
+            "deltaEAC": -0.25,
+            "unitCost_TWD_per_RT": 85000,
+            "costBasis": "coolingCapacity",
+            "description": "Replace standard chiller with high-efficiency chiller"
+        },
+        {
+            "id": "M06",
+            "name": "VRF系統 (VRF System)",
+            "nameEn": "Convert to VRF System",
+            "category": "HVAC",
+            "impactedParams": [
+                "EAC"
+            ],
+            "newValues": {
+                "hvacSystemId": "HVAC04"
+            },
+            "deltaEAC": -0.35,
+            "unitCost_TWD_m2": 4000,
+            "costBasis": "conditionedArea",
+            "eligibility": {
+                "maxFloorArea": 10000
+            },
+            "description": "Install high-efficiency VRF system"
+        },
+        {
+            "id": "M07",
+            "name": "LED照明升級 (LED Upgrade)",
+            "nameEn": "Upgrade to LED Lighting",
+            "category": "LIGHTING",
+            "impactedParams": [
+                "EL"
+            ],
+            "newValues": {
+                "lightingSystemId": "LT04"
+            },
+            "deltaEL": -0.45,
+            "unitCost_TWD_m2": 800,
+            "costBasis": "floorArea",
+            "description": "Replace all lighting with high-efficiency LED"
+        },
+        {
+            "id": "M08",
+            "name": "智慧照明控制 (Smart Lighting)",
+            "nameEn": "Add Smart Lighting Controls",
+            "category": "LIGHTING",
+            "impactedParams": [
+                "EL"
+            ],
+            "deltaEL": -0.30,
+            "unitCost_TWD_m2": 450,
+            "costBasis": "floorArea",
+            "description": "Install occupancy sensors and daylight dimming"
+        },
+        {
+            "id": "M09",
+            "name": "高效電梯 (High-Eff Elevator)",
+            "nameEn": "Upgrade to High-Efficiency Elevators",
+            "category": "ELEVATOR",
+            "impactedParams": [
+                "Et",
+                "Eelj"
+            ],
+            "newValues": {
+                "elevatorTypeId": "ET02"
+            },
+            "deltaEt": -0.15,
+            "unitCost_TWD_per_unit": 500000,
+            "costBasis": "elevatorCount",
+            "description": "Upgrade to regenerative drive elevators"
+        },
+        {
+            "id": "M10",
+            "name": "熱泵熱水系統 (Heat Pump DHW)",
+            "nameEn": "Install Heat Pump Water Heater",
+            "category": "DHW",
+            "impactedParams": [
+                "EHW"
+            ],
+            "newValues": {
+                "dhwSystemId": "DHW03"
+            },
+            "deltaEHW": -0.55,
+            "unitCost_TWD_per_kW": 25000,
+            "costBasis": "dhwCapacity",
+            "eligibility": {
+                "hasDHW": true
+            },
+            "description": "Replace electric/gas with heat pump water heater"
+        },
+        {
+            "id": "M11",
+            "name": "太陽能熱水 (Solar DHW)",
+            "nameEn": "Install Solar Water Heating",
+            "category": "DHW",
+            "impactedParams": [
+                "EHW"
+            ],
+            "newValues": {
+                "dhwSystemId": "DHW04"
+            },
+            "deltaEHW": -0.65,
+            "unitCost_TWD_m2": 12000,
+            "costBasis": "roofArea",
+            "eligibility": {
+                "hasDHW": true,
+                "minRoofArea": 50
+            },
+            "description": "Install solar thermal collectors for hot water"
+        },
+        {
+            "id": "M12",
+            "name": "綠屋頂 (Green Roof)",
+            "nameEn": "Install Green Roof",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "roofU",
+                "EEV"
+            ],
+            "deltaEEV": -0.05,
+            "unitCost_TWD_m2": 8000,
+            "costBasis": "roofArea",
+            "description": "Install vegetated green roof system"
+        },
+        {
+            "id": "M13",
+            "name": "自動遮陽 (Automated Shading)",
+            "nameEn": "Install Automated Shading",
+            "category": "ENVELOPE",
+            "impactedParams": [
+                "Ki"
+            ],
+            "newValues": {
+                "shadingTypeId": "SH09"
+            },
+            "deltaEEV": -0.18,
+            "unitCost_TWD_m2": 12000,
+            "costBasis": "windowArea",
+            "description": "Install sensor-controlled automated shading"
+        },
+        {
+            "id": "M14",
+            "name": "能源回收系統 (Energy Recovery)",
+            "nameEn": "Add Energy Recovery Ventilation",
+            "category": "HVAC",
+            "impactedParams": [
+                "EAC"
+            ],
+            "deltaEAC": -0.08,
+            "unitCost_TWD_per_CMH": 150,
+            "costBasis": "ventilationRate",
+            "description": "Install heat recovery ventilator (HRV/ERV)"
+        }
+    ],
+    "categories": [
+        "ENVELOPE",
+        "HVAC",
+        "LIGHTING",
+        "ELEVATOR",
+        "DHW"
+    ]
+}

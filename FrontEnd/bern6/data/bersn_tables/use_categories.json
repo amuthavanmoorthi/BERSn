@@ -1,0 +1,114 @@
+{
+    "uses": [
+        {
+            "id": "OFFICE_A",
+            "name": "辦公類 (Office A)",
+            "nameEn": "Office - General",
+            "AEUI": 150,
+            "LEUI": 35,
+            "EEUI": 5,
+            "Es": 0.80,
+            "hasDHW": false
+        },
+        {
+            "id": "OFFICE_B",
+            "name": "辦公類 (Office B)",
+            "nameEn": "Office - High Rise",
+            "AEUI": 160,
+            "LEUI": 38,
+            "EEUI": 8,
+            "Es": 0.85,
+            "hasDHW": false
+        },
+        {
+            "id": "HOTEL",
+            "name": "旅館類 (Hotel)",
+            "nameEn": "Hotel / Hospitality",
+            "AEUI": 180,
+            "LEUI": 45,
+            "EEUI": 12,
+            "Es": 0.75,
+            "hasDHW": true
+        },
+        {
+            "id": "HOSPITAL",
+            "name": "醫療類 (Hospital)",
+            "nameEn": "Hospital",
+            "AEUI": 280,
+            "LEUI": 65,
+            "EEUI": 15,
+            "Es": 0.90,
+            "hasDHW": true
+        },
+        {
+            "id": "RETAIL_DEPT",
+            "name": "百貨商場 (Dept Store)",
+            "nameEn": "Retail - Department Store",
+            "AEUI": 200,
+            "LEUI": 55,
+            "EEUI": 10,
+            "Es": 0.70,
+            "hasDHW": false
+        },
+        {
+            "id": "RETAIL_SUPER",
+            "name": "超市量販 (Supermarket)",
+            "nameEn": "Retail - Supermarket",
+            "AEUI": 220,
+            "LEUI": 48,
+            "EEUI": 6,
+            "Es": 0.65,
+            "hasDHW": false
+        },
+        {
+            "id": "SCHOOL",
+            "name": "學校類 (School)",
+            "nameEn": "School / Education",
+            "AEUI": 85,
+            "LEUI": 25,
+            "EEUI": 3,
+            "Es": 0.60,
+            "hasDHW": false
+        },
+        {
+            "id": "RESIDENTIAL",
+            "name": "住宿類 (Residential)",
+            "nameEn": "Residential - Common",
+            "AEUI": 50,
+            "LEUI": 15,
+            "EEUI": 2,
+            "Es": 0.55,
+            "hasDHW": true
+        },
+        {
+            "id": "RESTAURANT",
+            "name": "餐飲類 (Restaurant)",
+            "nameEn": "Restaurant / Food Service",
+            "AEUI": 250,
+            "LEUI": 50,
+            "EEUI": 4,
+            "Es": 0.70,
+            "hasDHW": true
+        },
+        {
+            "id": "FACTORY",
+            "name": "廠房類 (Factory)",
+            "nameEn": "Factory / Industrial",
+            "AEUI": 120,
+            "LEUI": 30,
+            "EEUI": 5,
+            "Es": 0.50,
+            "hasDHW": false
+        },
+        {
+            "id": "MIXED",
+            "name": "複合使用 (Mixed Use)",
+            "nameEn": "Mixed Use",
+            "AEUI": 165,
+            "LEUI": 40,
+            "EEUI": 8,
+            "Es": 0.75,
+            "hasDHW": false
+        }
+    ]
+}

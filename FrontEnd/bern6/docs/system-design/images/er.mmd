@@ -1,0 +1,21 @@
+erDiagram
+    ORGANIZATIONS ||--o{ USERS : has
+    ORGANIZATIONS ||--o{ PROJECTS : owns
+    USERS ||--o{ PROJECTS : creates
+    PROJECTS ||--o{ PROJECT_MEMBERS : has
+    USERS ||--o{ PROJECT_MEMBERS : joins
+
+    PROJECTS ||--|| PROJECT_BASELINES : has
+    PROJECTS ||--o{ PROJECT_EXEMPT_AREAS : has
+    PROJECTS ||--o{ PROJECT_GEOMETRY_OBJECTS : has
+
+    PROJECTS ||--o{ CALCULATION_RUNS : has
+    CALCULATION_RUNS ||--|| CALCULATION_RESULTS : yields
+
+    PROJECTS ||--o{ PROJECT_SCENARIOS : has
+    PROJECT_SCENARIOS ||--o{ SCENARIO_MEASURES : contains
+    MEASURE_LIBRARY ||--o{ SCENARIO_MEASURES : selected_by
+    PROJECT_SCENARIOS ||--o{ SCENARIO_RESULTS : yields
+
+    PROJECTS ||--o{ REPORTS : has
+    USERS ||--o{ AUDIT_LOGS : writes

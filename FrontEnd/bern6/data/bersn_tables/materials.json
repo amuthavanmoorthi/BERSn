@@ -1,0 +1,145 @@
+{
+    "materials": [
+        {
+            "id": "MAT01",
+            "name": "混凝土 (Concrete)",
+            "nameEn": "Reinforced Concrete",
+            "k": 1.63,
+            "density_kg_m3": 2400,
+            "specificHeat_J_kgK": 880
+        },
+        {
+            "id": "MAT02",
+            "name": "輕質混凝土 (Lightweight Concrete)",
+            "nameEn": "Lightweight Concrete",
+            "k": 0.60,
+            "density_kg_m3": 1400,
+            "specificHeat_J_kgK": 840
+        },
+        {
+            "id": "MAT03",
+            "name": "磚 (Brick)",
+            "nameEn": "Common Brick",
+            "k": 0.72,
+            "density_kg_m3": 1800,
+            "specificHeat_J_kgK": 800
+        },
+        {
+            "id": "MAT04",
+            "name": "空心磚 (Hollow Brick)",
+            "nameEn": "Hollow Clay Brick",
+            "k": 0.45,
+            "density_kg_m3": 1200,
+            "specificHeat_J_kgK": 800
+        },
+        {
+            "id": "MAT05",
+            "name": "水泥砂漿 (Cement Mortar)",
+            "nameEn": "Cement Mortar",
+            "k": 1.16,
+            "density_kg_m3": 2100,
+            "specificHeat_J_kgK": 900
+        },
+        {
+            "id": "MAT06",
+            "name": "石膏板 (Gypsum Board)",
+            "nameEn": "Gypsum Board",
+            "k": 0.22,
+            "density_kg_m3": 850,
+            "specificHeat_J_kgK": 1000
+        },
+        {
+            "id": "MAT07",
+            "name": "保麗龍 (EPS)",
+            "nameEn": "Expanded Polystyrene (EPS)",
+            "k": 0.038,
+            "density_kg_m3": 25,
+            "specificHeat_J_kgK": 1400
+        },
+        {
+            "id": "MAT08",
+            "name": "擠塑板 (XPS)",
+            "nameEn": "Extruded Polystyrene (XPS)",
+            "k": 0.034,
+            "density_kg_m3": 35,
+            "specificHeat_J_kgK": 1400
+        },
+        {
+            "id": "MAT09",
+            "name": "岩棉 (Rock Wool)",
+            "nameEn": "Rock Wool Insulation",
+            "k": 0.040,
+            "density_kg_m3": 100,
+            "specificHeat_J_kgK": 830
+        },
+        {
+            "id": "MAT10",
+            "name": "玻璃棉 (Glass Wool)",
+            "nameEn": "Glass Wool Insulation",
+            "k": 0.036,
+            "density_kg_m3": 40,
+            "specificHeat_J_kgK": 830
+        },
+        {
+            "id": "MAT11",
+            "name": "聚氨酯泡沫 (PU Foam)",
+            "nameEn": "Polyurethane Foam",
+            "k": 0.025,
+            "density_kg_m3": 40,
+            "specificHeat_J_kgK": 1400
+        },
+        {
+            "id": "MAT12",
+            "name": "空氣層 (Air Gap)",
+            "nameEn": "Air Gap",
+            "k": 0.025,
+            "density_kg_m3": 1,
+            "specificHeat_J_kgK": 1000,
+            "notes": "Unventilated air gap"
+        },
+        {
+            "id": "MAT13",
+            "name": "鋼板 (Steel Sheet)",
+            "nameEn": "Steel Sheet",
+            "k": 50.0,
+            "density_kg_m3": 7850,
+            "specificHeat_J_kgK": 480
+        },
+        {
+            "id": "MAT14",
+            "name": "鋁板 (Aluminum)",
+            "nameEn": "Aluminum Sheet",
+            "k": 160.0,
+            "density_kg_m3": 2700,
+            "specificHeat_J_kgK": 900
+        },
+        {
+            "id": "MAT15",
+            "name": "木材 (Wood)",
+            "nameEn": "Softwood",
+            "k": 0.14,
+            "density_kg_m3": 500,
+            "specificHeat_J_kgK": 1600
+        },
+        {
+            "id": "MAT16",
+            "name": "瓷磚 (Ceramic Tile)",
+            "nameEn": "Ceramic Tile",
+            "k": 1.30,
+            "density_kg_m3": 2300,
+            "specificHeat_J_kgK": 840
+        },
+        {
+            "id": "MAT17",
+            "name": "花崗石 (Granite)",
+            "nameEn": "Granite Stone",
+            "k": 2.80,
+            "density_kg_m3": 2700,
+            "specificHeat_J_kgK": 820
+        }
+    ],
+    "notes": {
+        "k": "Thermal conductivity in W/(m·K)",
+        "usage": "U = 1 / (Rsi + Σ(thickness/k) + Rso), where Rsi=0.13, Rso=0.04"
+    }
+}

@@ -1,0 +1,86 @@
+{
+    "shadingTypes": [
+        {
+            "id": "SH00",
+            "name": "無遮陽 (None)",
+            "nameEn": "No Shading",
+            "Ki": 1.00,
+            "description": "No external shading"
+        },
+        {
+            "id": "SH01",
+            "name": "水平遮陽板 (Horizontal Overhang)",
+            "nameEn": "Horizontal Overhang",
+            "Ki": 0.70,
+            "orientationBonus": {
+                "S": 0.10,
+                "N": 0.00
+            },
+            "description": "Fixed horizontal projection"
+        },
+        {
+            "id": "SH02",
+            "name": "垂直遮陽板 (Vertical Fins)",
+            "nameEn": "Vertical Fins",
+            "Ki": 0.75,
+            "orientationBonus": {
+                "E": 0.10,
+                "W": 0.10
+            },
+            "description": "Fixed vertical fins"
+        },
+        {
+            "id": "SH03",
+            "name": "格柵遮陽 (Egg Crate)",
+            "nameEn": "Egg Crate / Combined",
+            "Ki": 0.55,
+            "description": "Combined horizontal and vertical shading"
+        },
+        {
+            "id": "SH04",
+            "name": "外遮陽簾 (External Blinds)",
+            "nameEn": "External Roller Blinds",
+            "Ki": 0.60,
+            "description": "Operable external blinds"
+        },
+        {
+            "id": "SH05",
+            "name": "外遮陽百葉 (External Louvers)",
+            "nameEn": "External Louvers - Fixed",
+            "Ki": 0.65,
+            "description": "Fixed external louvers"
+        },
+        {
+            "id": "SH06",
+            "name": "活動式百葉 (Operable Louvers)",
+            "nameEn": "External Louvers - Operable",
+            "Ki": 0.50,
+            "description": "Motorized operable louvers"
+        },
+        {
+            "id": "SH07",
+            "name": "陽台深度遮陽 (Deep Balcony)",
+            "nameEn": "Deep Balcony / Loggia",
+            "Ki": 0.55,
+            "description": "Deep balcony providing shading"
+        },
+        {
+            "id": "SH08",
+            "name": "植栽遮陽 (Green Screen)",
+            "nameEn": "Green Screen / Vegetation",
+            "Ki": 0.65,
+            "description": "Vegetated shading screen"
+        },
+        {
+            "id": "SH09",
+            "name": "自動遮陽系統 (Automated)",
+            "nameEn": "Automated Shading System",
+            "Ki": 0.45,
+            "description": "Sensor-controlled auto shading"
+        }
+    ],
+    "notes": {
+        "Ki": "Shading coefficient (1.0 = no shading, lower = better shading)",
+        "orientationBonus": "Additional reduction factor for specific orientations"
+    }
+}

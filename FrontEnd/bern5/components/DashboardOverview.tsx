@@ -77,6 +77,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
     // ── Backend dashboard stats (fetched on mount) ──
     const [backendStats, setBackendStats] = useState<BackendDashboardStats | null>(null);
+    const [statsError, setStatsError] = useState<string | null>(null);
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -86,19 +87,26 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     credentials: 'include',
                     headers: { 'X-Device-Fingerprint': buildFingerprint() },
                 });
-                if (!res.ok) return; // Fail silently — keep demo data visible
+                if (!res.ok) {
+                    if (!cancelled) setStatsError(`Dashboard stats request failed (HTTP ${res.status}).`);
+                    return;
+                }
                 const body = await res.json() as { ok: boolean; stats: BackendDashboardStats };
                 if (!cancelled && body.ok) setBackendStats(body.stats);
-            } catch { /* offline / network — keep demo data */ }
+            } catch (err) {
+                if (!cancelled) setStatsError(err instanceof Error ? err.message : 'Network error loading dashboard stats.');
+            }
         })();
         return () => { cancelled = true; };
     }, []);
 
-    // Use backend data when available, else demo
-    const totalProjects = backendStats?.totalProjects ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.projects, 0);
-    const totalInProgress = backendStats?.byStatus?.IN_REVIEW ?? backendStats?.byStatus?.DRAFT ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.inProgress, 0);
-    const totalCompleted = backendStats?.byStatus?.APPROVED ?? TAOYUAN_DISTRICTS.reduce((sum, d) => sum + d.completed, 0);
-    const totalArea = backendStats ? Math.round(backendStats.totalFloorAreaM2 / 10000) / 100 : 967.0;
+    const totalProjects = backendStats?.totalProjects ?? 0;
+    const totalInProgress = backendStats?.byStatus?.UNDER_REVIEW
+        ?? backendStats?.byStatus?.SUBMITTED
+        ?? backendStats?.byStatus?.DRAFT
+        ?? 0;
+    const totalCompleted = backendStats?.byStatus?.APPROVED ?? 0;
+    const totalArea = backendStats ? Math.round(backendStats.totalFloorAreaM2 / 10000) / 100 : 0;
 
     // Max for bar chart scaling
     // (maxProjects previously used by inline SVG bar chart — Recharts auto-scales)

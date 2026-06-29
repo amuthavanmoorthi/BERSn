@@ -402,9 +402,19 @@ export function computeEEI(
 // ============================================
 
 export function computeScore(EEI: number): number {
-    // SCOREee calculation:
-    // if EEI ≤ 0.8: SCOREee = 50 + 40×(0.8−EEI)/0.3
-    // else: SCOREee = 50×(2.0−EEI)/1.2
+    // SCOREee calculation (BERSn Manual §3-4, Eq. 3.16a / 3.16b):
+    //   if EEI ≤ 0.8: SCOREee = 50 + 40×(0.8−EEI)/0.3
+    //   else:         SCOREee = 50×(2.0−EEI)/1.2
+    //
+    // Precision policy (set 2026-05-21, reviewer-confirmed by Carl Yu):
+    //   - The full-precision EEI MUST be passed in. Do NOT round EEI to 2dp
+    //     before calling this function. Display rounding is done by the
+    //     caller (typically 2-3 dp) after the raw value is returned.
+    //   - SCOREee is NOT capped at 100. Real scores above 100 (very low EEI)
+    //     are valid and must be displayed as computed.
+    //   - The lower bound clamp to 0 lives in the consumer (or formal report
+    //     generator), if needed; this function returns the raw mathematical
+    //     value so callers can preserve sign for diagnostics.
 
     if (EEI <= 0.8) {
         return 50 + 40 * (0.8 - EEI) / 0.3;

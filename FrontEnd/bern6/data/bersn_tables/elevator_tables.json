@@ -1,0 +1,138 @@
+{
+    "serviceHeightCategories": [
+        {
+            "id": "H01",
+            "name": "1-5樓 (Low-rise)",
+            "minFloors": 1,
+            "maxFloors": 5,
+            "maxHeight_m": 20,
+            "Eelj": 1.2,
+            "description": "Low-rise buildings"
+        },
+        {
+            "id": "H02",
+            "name": "6-10樓 (Mid-rise A)",
+            "minFloors": 6,
+            "maxFloors": 10,
+            "maxHeight_m": 40,
+            "Eelj": 1.5,
+            "description": "Mid-rise buildings A"
+        },
+        {
+            "id": "H03",
+            "name": "11-15樓 (Mid-rise B)",
+            "minFloors": 11,
+            "maxFloors": 15,
+            "maxHeight_m": 60,
+            "Eelj": 1.8,
+            "description": "Mid-rise buildings B"
+        },
+        {
+            "id": "H04",
+            "name": "16-20樓 (High-rise A)",
+            "minFloors": 16,
+            "maxFloors": 20,
+            "maxHeight_m": 80,
+            "Eelj": 2.2,
+            "description": "High-rise buildings A"
+        },
+        {
+            "id": "H05",
+            "name": "21-30樓 (High-rise B)",
+            "minFloors": 21,
+            "maxFloors": 30,
+            "maxHeight_m": 120,
+            "Eelj": 2.8,
+            "description": "High-rise buildings B"
+        },
+        {
+            "id": "H06",
+            "name": "31樓以上 (Super high-rise)",
+            "minFloors": 31,
+            "maxFloors": 999,
+            "maxHeight_m": 500,
+            "Eelj": 3.5,
+            "description": "Super high-rise buildings"
+        }
+    ],
+    "elevatorTypes": [
+        {
+            "id": "ET01",
+            "name": "標準型電梯 (Standard)",
+            "efficiencyFactor": 1.0,
+            "description": "Standard traction elevator"
+        },
+        {
+            "id": "ET02",
+            "name": "高效型電梯 (High-efficiency)",
+            "efficiencyFactor": 0.85,
+            "description": "High-efficiency with regenerative drive"
+        },
+        {
+            "id": "ET03",
+            "name": "油壓式電梯 (Hydraulic)",
+            "efficiencyFactor": 1.25,
+            "description": "Hydraulic elevator"
+        },
+        {
+            "id": "ET04",
+            "name": "無機房電梯 (Machine-room-less)",
+            "efficiencyFactor": 0.90,
+            "description": "MRL elevator"
+        }
+    ],
+    "YOHByUse": [
+        {
+            "useId": "OFFICE_A",
+            "YOHj": 3000,
+            "description": "Office standard hours"
+        },
+        {
+            "useId": "OFFICE_B",
+            "YOHj": 3200,
+            "description": "Office high-rise hours"
+        },
+        {
+            "useId": "HOTEL",
+            "YOHj": 5000,
+            "description": "Hotel 24h operation"
+        },
+        {
+            "useId": "HOSPITAL",
+            "YOHj": 6000,
+            "description": "Hospital continuous"
+        },
+        {
+            "useId": "RETAIL_DEPT",
+            "YOHj": 4000,
+            "description": "Retail extended hours"
+        },
+        {
+            "useId": "RETAIL_SUPER",
+            "YOHj": 4500,
+            "description": "Supermarket extended"
+        },
+        {
+            "useId": "SCHOOL",
+            "YOHj": 2000,
+            "description": "School daytime only"
+        },
+        {
+            "useId": "RESIDENTIAL",
+            "YOHj": 2500,
+            "description": "Residential moderate"
+        },
+        {
+            "useId": "RESTAURANT",
+            "YOHj": 3500,
+            "description": "Restaurant service hours"
+        },
+        {
+            "useId": "FACTORY",
+            "YOHj": 3500,
+            "description": "Factory shift operation"
+        }
+    ],
+    "occupancyFactor": 0.6,
+    "notes": "Elevator energy: EtEUI = (occupancyFactor × Σ(Nej × Eelj × YOHj)) / AFe"
+}

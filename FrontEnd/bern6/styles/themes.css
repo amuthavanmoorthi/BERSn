@@ -1,0 +1,127 @@
+/* styles/themes.css
+ * 全站顏色 token。改色只動這個檔案，元件用 var(--color-*)。
+ * Default = theme C (warm) — index.html 預先設 <html data-theme="c">，
+ * 故只需在 [data-theme='c'] 一處定義（避免 :root 與 c 雙寫漂移）。
+ * useTheme 預設 fallback 也是 'c'。
+ */
+
+/* ---- Global font-size bump ----
+ * Workspace UI uses very small Tailwind arbitrary values (text-[9px]..text-[12px])
+ * that are hard to read at this layout density. Floor everything at 12px and
+ * bump small/xs/sm noticeably so labels become legible without rebuilding
+ * every panel.
+ *
+ * Effective scale: +3-5px on the tiniest, +2px on small/xs/sm. text-base
+ * (16px) and larger untouched. */
+.text-\[6px\]   { font-size: 11px !important; line-height: 1.35 !important; }
+.text-\[7px\]   { font-size: 11px !important; line-height: 1.35 !important; }
+.text-\[8px\]   { font-size: 12px !important; line-height: 1.4 !important; }
+.text-\[9px\]   { font-size: 12px !important; line-height: 1.4 !important; }
+.text-\[10px\]  { font-size: 13px !important; line-height: 1.45 !important; }
+.text-\[11px\]  { font-size: 14px !important; line-height: 1.5 !important; }
+.text-\[12px\]  { font-size: 14px !important; line-height: 1.5 !important; }
+.text-\[13px\]  { font-size: 15px !important; line-height: 1.5 !important; }
+.text-xs        { font-size: 14px !important; line-height: 1.5 !important; }
+.text-sm        { font-size: 16px !important; line-height: 1.55 !important; }
+.text-base      { font-size: 17px !important; line-height: 1.55 !important; }
+
+
+[data-theme='a'] { /* 暗藍 — text bumped to white for max contrast on dark bg */
+  --color-bg:               #0f172a;
+  --color-card:             #1e293b;
+  --color-border:           #334155;
+  --color-text:             #ffffff;
+  --color-muted:            #cbd5e1;
+  --color-accent:           #2563eb;
+  --color-accent-hover:     #1d4ed8;
+  --color-accent-fg:        #ffffff;
+  --color-step-active-bg:   #1e3a8a;
+  --color-step-active-text: #ffffff;
+  --color-handle:           #334155;
+  --color-handle-hover:     #2563eb;
+  /* Semantic value tints — bright variants for dark bg */
+  --color-val-window: #22d3ee;
+  --color-val-roof:   #fbbf24;
+  --color-val-good:   #34d399;
+  --color-val-warn:   #fbbf24;
+}
+
+[data-theme='b'] { /* 白底+藍 */
+  --color-bg:               #f8fafc;
+  --color-card:             #ffffff;
+  --color-border:           #e2e8f0;
+  --color-text:             #1e293b;
+  --color-muted:            #64748b;
+  --color-accent:           #2563eb;
+  --color-accent-hover:     #1d4ed8;
+  --color-accent-fg:        #ffffff;
+  --color-step-active-bg:   #dbeafe;
+  --color-step-active-text: #1e40af;
+  --color-handle:           #e2e8f0;
+  --color-handle-hover:     #2563eb;
+  /* Semantic value tints — dark variants for light bg */
+  --color-val-window: #0891b2;
+  --color-val-roof:   #d97706;
+  --color-val-good:   #059669;
+  --color-val-warn:   #d97706;
+}
+
+[data-theme='c'] { /* 暖色（同 :root） */
+  --color-bg:               #fffaf3;
+  --color-card:             #ffffff;
+  --color-border:           #f3e2c8;
+  --color-text:             #3d2c1a;
+  --color-muted:            #7a5a3a;
+  --color-accent:           #ef5d3b;
+  --color-accent-hover:     #d44a28;
+  --color-accent-fg:        #ffffff;
+  --color-step-active-bg:   #ffe9d6;
+  --color-step-active-text: #8a3b00;
+  --color-handle:           #f3e2c8;
+  --color-handle-hover:     #ef5d3b;
+  /* Semantic value tints — dark variants for light bg */
+  --color-val-window: #0891b2;
+  --color-val-roof:   #d97706;
+  --color-val-good:   #059669;
+  --color-val-warn:   #d97706;
+}
+
+[data-theme='e'] { /* 鮮明暖色 — 米黃底、桃粉 accent，較 c 更柔和明亮 */
+  --color-bg:               #f7ecd6;
+  --color-card:             #ffffff;
+  --color-border:           #e8d4ba;
+  --color-text:             #2c2418;
+  --color-muted:            #8a6e4a;
+  --color-accent:           #f5a78e;
+  --color-accent-hover:     #ec8c6a;
+  --color-accent-fg:        #5c2c1a;
+  --color-step-active-bg:   #f9d9c1;
+  --color-step-active-text: #a85a32;
+  --color-handle:           #e8d4ba;
+  --color-handle-hover:     #f5a78e;
+  /* Semantic value tints — dark variants for light bg */
+  --color-val-window: #0891b2;
+  --color-val-roof:   #d97706;
+  --color-val-good:   #059669;
+  --color-val-warn:   #d97706;
+}
+
+[data-theme='d'] { /* 綠能 */
+  --color-bg:               #f7fbf4;
+  --color-card:             #ffffff;
+  --color-border:           #d6e8d2;
+  --color-text:             #1f2d23;
+  --color-muted:            #5b6e60;
+  --color-accent:           #16a34a;
+  --color-accent-hover:     #15803d;
+  --color-accent-fg:        #ffffff;
+  --color-step-active-bg:   #dcf0d1;
+  --color-step-active-text: #15553a;
+  --color-handle:           #d6e8d2;
+  --color-handle-hover:     #16a34a;
+  /* Semantic value tints — dark variants for light bg */
+  --color-val-window: #0891b2;
+  --color-val-roof:   #d97706;
+  --color-val-good:   #059669;
+  --color-val-warn:   #d97706;
+}

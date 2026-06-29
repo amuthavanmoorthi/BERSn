@@ -56,7 +56,15 @@ const ACCOUNTS: SeedAccount[] = [
   },
 ];
 
-const DEFAULT_TEMP_PASSWORD = 'BERSn@SeedAccess2026!';
+/**
+ * Default password applied to every seeded RBAC account when no
+ * per-account environment override is provided. The chosen value
+ * satisfies the production password policy enforced by
+ * services/passwordPolicy.ts (length ≥ 12, upper/lower/digit/symbol)
+ * so the seed accounts can sign in immediately without a forced
+ * password reset.
+ */
+const DEFAULT_TEMP_PASSWORD = 'Password123!';
 
 function resolvePassword(envKey: string): string {
   const fromEnv = String(process.env[envKey] || '').trim();
@@ -78,9 +86,15 @@ async function upsertSeedAccount(client: PoolClient, account: SeedAccount): Prom
     account.organizationName,
     account.organizationType,
   );
+  const password = resolvePassword(account.defaultPasswordEnv);
+  const passwordHash = await hashPassword(password);
   const existing = await findUserByUsername(client, username);
 
   if (existing) {
+    // Re-sync the canonical profile AND reset the password to the
+    // deterministic seed value so the requirement "users can sign in
+    // with the documented password" stays true even after the row
+    // was previously edited through the admin API.
     await client.query(
       `UPDATE users
           SET full_name      = $2,
@@ -90,6 +104,7 @@ async function upsertSeedAccount(client: PoolClient, account: SeedAccount): Prom
               organization_id = $6,
               department     = $7,
               position       = $8,
+              password_hash  = $9,
               is_active      = TRUE,
               is_first_login = FALSE,
               temp_password_changed = TRUE,
@@ -104,13 +119,12 @@ async function upsertSeedAccount(client: PoolClient, account: SeedAccount): Prom
         organization.id,
         account.department,
         account.position,
+        passwordHash,
       ],
     );
-    return { status: 'refreshed', userId: existing.id, temporaryPassword: '' };
+    return { status: 'refreshed', userId: existing.id, temporaryPassword: password };
   }
 
-  const password = resolvePassword(account.defaultPasswordEnv);
-  const passwordHash = await hashPassword(password);
   const created = await createManagedUser(client, {
     id: crypto.randomUUID(),
     username,
@@ -146,9 +160,10 @@ async function main(): Promise<void> {
         await client.query('COMMIT');
         if (result.status === 'created') {
           console.log(`[seed] CREATED   ${account.email} (${account.role})`);
-          console.log(`[seed]   Temporary password: ${result.temporaryPassword}`);
+          console.log(`[seed]   Password: ${result.temporaryPassword}`);
         } else {
-          console.log(`[seed] REFRESHED ${account.email} (${account.role}) — profile re-synced, password preserved`);
+          console.log(`[seed] REFRESHED ${account.email} (${account.role}) — profile re-synced, password reset`);
+          console.log(`[seed]   Password: ${result.temporaryPassword}`);
         }
       } catch (error) {
         await client.query('ROLLBACK').catch(() => {});

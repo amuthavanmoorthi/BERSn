@@ -12,8 +12,8 @@ const headers = {
   'Origin': ORIGIN,
 };
 
-// Credentials provisioned via `npm run auth:provision-user`
-const TEST_USER = { username: 'admin', password: 'Taoyuan@2026Platform!' };
+// Credentials match the RBAC seed (npm run db:seed-rbac).
+const TEST_USER = { username: 'amuthavanmmoorthi@gmail.com', password: 'Password123!' };
 
 let accessCookie = '';
 let refreshCookie = '';
@@ -31,7 +31,7 @@ describe('POST /api/auth/login', () => {
     const res = await fetch(`${BASE}/api/auth/login`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ username: 'admin', password: 'wrong', remember_me: false }),
+      body: JSON.stringify({ username: TEST_USER.username, password: 'wrong', remember_me: false }),
     });
     expect(res.status).toBe(401);
     const body = await res.json() as { ok: boolean };
@@ -47,7 +47,7 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { ok: boolean; user: { username: string; role: string } };
     expect(body.ok).toBe(true);
-    expect(body.user.username).toBe('admin');
+    expect(body.user.username).toBe(TEST_USER.username);
     expect(body.user.role).toBe('SYS_ADMIN');
 
     const cookies = extractCookies(res);
@@ -83,7 +83,7 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { ok: boolean; user: { username: string; organization: string | null; organization_id: string | null } };
     expect(body.ok).toBe(true);
-    expect(body.user.username).toBe('admin');
+    expect(body.user.username).toBe(TEST_USER.username);
     // organization fields added in fix #8
     expect('organization' in body.user).toBe(true);
     expect('organization_id' in body.user).toBe(true);

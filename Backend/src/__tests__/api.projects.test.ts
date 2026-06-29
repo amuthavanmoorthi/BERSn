@@ -7,7 +7,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 const BASE = 'http://localhost:4000';
 const ORIGIN = 'http://localhost:3002';
 const HEADERS = { 'Content-Type': 'application/json', 'Origin': ORIGIN };
-const TEST_USER = { username: 'admin', password: 'Taoyuan@2026Platform!' };
+// The "admin" bootstrap user was removed once the RBAC seed accounts
+// became the canonical login set. Tests authenticate as the seeded
+// SYS_ADMIN so they continue to exercise the full admin permission
+// surface.
+const TEST_USER = { username: 'amuthavanmmoorthi@gmail.com', password: 'Password123!' };
 
 let cookie = '';
 let createdProjectId = '';

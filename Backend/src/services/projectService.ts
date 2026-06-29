@@ -15,11 +15,11 @@ import {
   listActiveBuildingTypes,
   listActiveOrganizations,
   listAllProjects,
+  listProjectsForAgencyReviewer,
   listAuditLogsForProject,
   listCalculationsForProject,
   listProjectMembers,
   listProjectsAssignedToUser,
-  listProjectsByOrganization,
   listProjectWorkflowHistory,
   revokeProjectMember,
   softDeleteProject,
@@ -290,6 +290,16 @@ function assertCanViewProject(user: ProjectUserContext, project: ProjectRow, req
   ) {
     return;
   }
+  // Agency reviewers can view any project that has entered the
+  // workflow (i.e. any non-DRAFT). This is the cross-organisation
+  // review queue: a vendor submission must be visible to *any* agency
+  // reviewer, not just one sharing the vendor's organisation.
+  if (
+    isAgencyRole(user.role)
+    && project.status !== WORKFLOW_STATES.DRAFT
+  ) {
+    return;
+  }
   if (
     hasPermission(user.role, PERMISSIONS.PROJECT_VIEW_OWN)
     && (project.created_by === user.id || project.assigned_to === user.id)
@@ -427,8 +437,8 @@ export async function listProjectsForUser(
   try {
     const rows = isAdminRole(user.role)
       ? await listAllProjects(client)
-      : isAgencyRole(user.role) && user.organization_id
-        ? await listProjectsByOrganization(client, user.organization_id)
+      : isAgencyRole(user.role)
+        ? await listProjectsForAgencyReviewer(client, user.id, user.organization_id || null)
         : await listProjectsAssignedToUser(client, user.id);
     return rows.map(toProjectSummary);
   } finally {

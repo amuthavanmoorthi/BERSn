@@ -17,6 +17,13 @@ import FloorManagerPanel from './components/FloorManagerPanel';
 import ProjectSettingsPanel from './components/ProjectSettingsPanel';
 import EnvelopeSettingsPanel from './components/EnvelopeSettingsPanel';
 import MEPSettingsPanel from './components/MEPSettingsPanel';
+import ProjectWorkflowPanel from './components/ProjectWorkflowPanel';
+import {
+  CheckCircleIcon,
+  NoEntryIcon,
+  PlusIcon,
+  XCircleIcon,
+} from './components/icons/StatusIcons';
 import GeometryCalculationsPanel from './components/GeometryCalculationsPanel';
 import ProjectDashboard from './components/ProjectDashboard';
 import AccountManagement from './components/AccountManagement';
@@ -51,6 +58,8 @@ import {
   type BackendScenarioResult,
 } from './services/projectApi';
 import type { ConfigLookups, GeometryPreview, Project } from './types/project';
+import { useViewRouter } from './routes/useViewRouter';
+import { useSession } from './context/SessionContext';
 
 const PASSKEY_PROMPT_KEY = 'bersn_passkey_prompted';
 
@@ -139,19 +148,19 @@ function hasSavedWorkspaceState(workspace: Project['workspace'] | undefined): bo
     || workspace.elevatorCount !== DB_DEFAULT_WORKSPACE.elevatorCount;
 }
 
-function isDemoProjectId(projectId: string | null): boolean {
-  return Boolean(projectId && projectId.startsWith('demo-'));
-}
-
 const App: React.FC = () => {
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = translations[lang];
 
-  // View state: 'login', 'change-password', 'dashboard', 'workspace', 'accounts', or 'overview'
-  const [currentView, setCurrentView] = useState<'login' | 'change-password' | 'dashboard' | 'workspace' | 'accounts' | 'overview'>('login');
+  // View state is driven by react-router. `useViewRouter` translates
+  // the current URL into the legacy `currentView` vocabulary so the
+  // rest of App.tsx can keep its existing rendering branches; the
+  // companion `setCurrentView` setter pushes the next view onto the
+  // browser history. activeProjectId now comes from /projects/:projectId.
+  const { currentView, activeProjectId, setCurrentView } = useViewRouter();
+  const session = useSession();
   const [authReady, setAuthReady] = useState(false);
   const [loginNotice, setLoginNotice] = useState('');
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeBackendProject, setActiveBackendProject] = useState<Project | null>(null);
   const [configLookups, setConfigLookups] = useState<ConfigLookups | null>(null);
   const [configLookupError, setConfigLookupError] = useState('');
@@ -245,7 +254,7 @@ const App: React.FC = () => {
 
   const objects = useMemo(() => floorsToGeometryObjects(floors), [floors]);
 
-  const [activeTab, setActiveTab] = useState<'config' | 'analysis' | 'optimization' | 'report'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'analysis' | 'optimization' | 'report' | 'workflow'>('config');
   const [configSubTab, setConfigSubTab] = useState<'project' | 'envelope' | 'mep'>('project');
   const [analysisSubTab, setAnalysisSubTab] = useState<'eev' | 'mep'>('eev');
 
@@ -283,7 +292,7 @@ const App: React.FC = () => {
   const [selectedGlazing, setSelectedGlazing] = useState('GLZ_DBL_LOW_E');
 
   const activeObj = objects[0];
-  const isBackendWorkspace = Boolean(activeProjectId && !isDemoProjectId(activeProjectId));
+  const isBackendWorkspace = Boolean(activeProjectId);
   const renderObjects = useMemo(() => {
     const previewRenderObjects = geometryPreview?.renderParams?.objects;
     if (!isBackendWorkspace || !previewRenderObjects?.length) {
@@ -313,10 +322,29 @@ const App: React.FC = () => {
     const weights = asRecord(outputs?.weights);
     const envelopeEfficiency = asRecord(outputs?.envelopeEfficiency);
     const inputsUsed = asRecord(geometryPreview?.performance?.inputsUsed);
+    const envelopePage = asRecord(geometryPreview?.envelope);
+    const envelopeSummary = asRecord(envelopePage?.summary);
     const eev = numericRecordValue(inputsUsed, 'EEV', kpis.eevCalculation.calculatedEEV);
+    // Inputs the analysis breakdown panel needs but that are not in the
+    // legacy frontend `kpis` shape: total floor area, exempt area
+    // total, and the per-component envelope coefficients (Ug, η, Ki).
+    // We pull them straight from the Python `performance` block so the
+    // calculation panel can render real numbers — not the hard-coded
+    // mock fallbacks it used to fall back to.
+    // Note: backend python uses canonical field names (wallUValue, ug,
+    // etaI, ki). Map them to the frontend semantics used by the
+    // analysis breakdown panel.
+    const afFromBackend = numericRecordValue(inputsUsed, 'AF', baseline.totalFloorAreaAF);
+    const afkTotal = numericRecordValue(inputsUsed, 'AFk_total_m2', 0);
+    const wallU = numericRecordValue(envelopeSummary, 'wallUValue', 0);
+    const glassU = numericRecordValue(envelopeSummary, 'ug', 0);
+    const eta = numericRecordValue(envelopeSummary, 'etaI', 0);
+    const shadingKi = numericRecordValue(envelopeSummary, 'ki', 0);
 
     return {
       ...kpis,
+      af: afFromBackend,
+      exemptTotal: afkTotal,
       afe: official.afe,
       eei: official.eei,
       esr: official.esr,
@@ -338,6 +366,10 @@ const App: React.FC = () => {
         ...kpis.eevCalculation,
         calculatedEEV: eev,
         totalEnvelopeArea: numericRecordValue(envelopeEfficiency, 'weightedArea', kpis.eevCalculation.totalEnvelopeArea),
+        wallU,
+        glassU,
+        eta,
+        shadingKi,
       },
       mepResults: {
         ...kpis.mepResults,
@@ -377,31 +409,33 @@ const App: React.FC = () => {
     }
   }, [floorsForCalc, isBackendWorkspace]);
 
-  // Bootstrap session (auto-login if cookie still valid)
+  // Bootstrap session. SessionProvider already calls `getCurrentSession`
+  // on mount; we just react to its result here so we do not double-hit
+  // /api/auth/me. The route guards (RequireAuth in routes/RouteGuards
+  // .tsx) handle the not-signed-in redirect — this effect only needs
+  // to deal with two app-level UX rules:
+  //   1. Mark the SPA ready once the session check has resolved.
+  //   2. Force first-login users into the change-password flow.
   useEffect(() => {
-    let cancelled = false;
+    if (session.isLoading) {
+      return;
+    }
+    setAuthReady(true);
 
-    getCurrentUser()
-      .then((user) => {
-        if (!cancelled) {
-          setCurrentView(user?.is_first_login ? 'change-password' : 'dashboard');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCurrentView('login');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAuthReady(true);
-        }
-      });
+    // Force first-login users into the password-change flow,
+    // including when they accidentally land on /login with a still
+    // valid temporary-password cookie.
+    if (session.user?.is_first_login && currentView !== 'change-password') {
+      setCurrentView('change-password', { replace: true });
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    // Users landing on /login while already authenticated should not
+    // see the login form again — bounce them to the dashboard.
+    if (session.user && !session.user.is_first_login && currentView === 'login') {
+      setCurrentView('dashboard', { replace: true });
+    }
+  }, [session.isLoading, session.user, currentView, setCurrentView]);
 
   // Load BERSn config lookups once authenticated
   useEffect(() => {
@@ -431,7 +465,7 @@ const App: React.FC = () => {
 
   // Load active project from API and seed workspace settings
   useEffect(() => {
-    if (!activeProjectId || isDemoProjectId(activeProjectId)) {
+    if (!activeProjectId) {
       setActiveBackendProject(null);
       return;
     }
@@ -795,11 +829,14 @@ const App: React.FC = () => {
     if (!activeProjectId) return;
     const trimmedName = scenarioBuilderName.trim();
     if (!trimmedName) {
-      setScenarioBuilderError(lang === 'zh' ? '請輸入方案名稱。' : 'Please enter a scenario name.');
+      // Pull the error copy from the translation dictionary so the
+      // message follows the active UI language even when the user
+      // toggles `lang` after the error first fires.
+      setScenarioBuilderError(t.scenarioNameRequired);
       return;
     }
     if (scenarioBuilderSelectedIds.length === 0) {
-      setScenarioBuilderError(lang === 'zh' ? '請至少選擇一項措施。' : 'Please select at least one measure.');
+      setScenarioBuilderError(t.scenarioMeasureRequired);
       return;
     }
     setScenarioBuilderSaving(true);
@@ -816,11 +853,11 @@ const App: React.FC = () => {
       // Kick off a simulation so the user sees results immediately.
       void handleSelectScenario(created.id);
     } catch (error) {
-      setScenarioBuilderError(error instanceof Error ? error.message : 'Failed to create scenario.');
+      setScenarioBuilderError(error instanceof Error ? error.message : t.scenarioCreateFailed);
     } finally {
       setScenarioBuilderSaving(false);
     }
-  }, [activeProjectId, scenarioBuilderName, scenarioBuilderSelectedIds, lang, handleSelectScenario]);
+  }, [activeProjectId, scenarioBuilderName, scenarioBuilderSelectedIds, t, handleSelectScenario]);
 
   const handleDeleteScenario = useCallback(async (scenarioId: string) => {
     if (!activeProjectId) return;
@@ -839,21 +876,21 @@ const App: React.FC = () => {
         setSelectedScenarioId(null);
       }
     } catch (error) {
-      setScenariosError(error instanceof Error ? error.message : 'Failed to delete scenario.');
+      setScenariosError(error instanceof Error ? error.message : t.scenarioDeleteFailed);
     }
-  }, [activeProjectId, lang, selectedScenarioId]);
+  }, [activeProjectId, lang, selectedScenarioId, t]);
 
   const handleEnterProject = (projectId: string) => {
     setActiveBackendProject(null);
     setGeometryPreview(null);
     setGeometryPreviewError('');
-    setActiveProjectId(projectId);
-    setCurrentView('workspace');
+    setCurrentView('workspace', { projectId });
   };
 
   const handleBackToDashboard = () => {
+    // activeProjectId clears automatically once the URL no longer
+    // matches /projects/:projectId — no explicit reset needed.
     setCurrentView('dashboard');
-    setActiveProjectId(null);
   };
 
   // Legacy helper (kept for compatibility, but main editing is via FloorManagerPanel)
@@ -918,6 +955,12 @@ const App: React.FC = () => {
   const handleLogin = async (username: string, password: string, rememberMe: boolean) => {
     setLoginNotice('');
     const result = await loginWithApi(username, password, rememberMe);
+    // Refresh the session context so RouteGuards / sidebars see the
+    // newly-authenticated user before we navigate; otherwise
+    // <RequireAuth> on /dashboard could briefly bounce us back to
+    // /login because session.user is still null in memory.
+    await session.refresh();
+
     if (result.must_change_password) {
       setCurrentView('change-password');
       return;
@@ -953,12 +996,18 @@ const App: React.FC = () => {
 
   const handlePasskeyLogin = async (username: string, rememberMe: boolean) => {
     const result = await loginWithPasskey(username, rememberMe);
+    await session.refresh();
     setCurrentView(result.must_change_password ? 'change-password' : 'dashboard');
   };
 
   const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
     try {
       await changePasswordWithApi(currentPassword, newPassword);
+      // changePassword clears the access cookie server-side, so the
+      // local session must be cleared before navigating away from the
+      // change-password page; otherwise RouteGuards would still think
+      // the user is authenticated.
+      session.clear();
       setLoginNotice(
         lang === 'zh'
           ? '密碼已更新，請使用新密碼重新登入。'
@@ -970,6 +1019,7 @@ const App: React.FC = () => {
         error instanceof AuthError
         && (error.code === 'BERSN_AUTH_TOKEN_INVALID' || error.code === 'BERSN_AUTH_INVALID_SESSION')
       ) {
+        session.clear();
         setLoginNotice(
           lang === 'zh'
             ? '登入狀態已失效。請先使用目前的暫時密碼重新登入，再更新密碼。'
@@ -983,6 +1033,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await logoutWithApi();
+    session.clear();
     sessionStorage.removeItem(PASSKEY_PROMPT_KEY);
     setLoginNotice(
       lang === 'zh'
@@ -1084,7 +1135,16 @@ const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <nav className="flex bg-slate-800/50 p-1 rounded-xl">
-            {(['config', 'analysis', 'optimization', 'report'] as const).map((tab) => (
+            {/*
+              The 'workflow' tab hosts the Submit / Start Review / Approve
+              / Reject / Request-Revision / Mark-Completed actions plus
+              the audit timeline.  Keeping it as a full-screen tab (vs.
+              a strip above the 3D viewer) lets the 3D canvas use the
+              entire viewport on every other tab.  Hidden on demo
+              projects since the workflow service only operates on
+              backend-backed projects.
+            */}
+            {(['config', 'analysis', 'optimization', 'report', ...(isBackendWorkspace ? ['workflow'] as const : [])] as const).map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
                 {t[tab as keyof typeof t]}
               </button>
@@ -1100,9 +1160,29 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className={`flex-1 min-h-0 ${activeTab === 'report' ? 'overflow-auto' : 'grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden max-w-[1920px] mx-auto w-full'}`}>
-        {activeTab === 'report' ? (
-          <ReportView baseline={baseline} kpis={displayKpis} lang={lang} />
+      <main className={`flex-1 min-h-0 ${activeTab === 'report' || activeTab === 'workflow' ? 'overflow-auto' : 'grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden max-w-[1920px] mx-auto w-full'}`}>
+        {activeTab === 'workflow' ? (
+          // Dedicated workflow screen — full-width status badge, role-
+          // gated action buttons, and the chronological audit timeline.
+          // Lives at the very last tab in the header so it sits "right
+          // before sign-out" and never steals room from the 3D canvas.
+          <div className="p-4 max-w-[1280px] mx-auto w-full">
+            {isBackendWorkspace && activeBackendProject ? (
+              <ProjectWorkflowPanel
+                project={activeBackendProject}
+                lang={lang}
+                onProjectChanged={(updated) => setActiveBackendProject(updated)}
+              />
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-sm text-slate-500">
+                {lang === 'zh'
+                  ? '請先從專案儀表板進入後端專案以查看工作流程。'
+                  : 'Open a backend-backed project from the dashboard to view its workflow.'}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'report' ? (
+          <ReportView baseline={baseline} kpis={displayKpis} geometryPreview={geometryPreview} lang={lang} />
         ) : activeTab === 'optimization' ? (
           <div className="lg:col-span-12 grid grid-cols-12 gap-8 overflow-y-auto custom-scrollbar p-2">
             <div className="col-span-12 lg:col-span-7 space-y-8">
@@ -1149,9 +1229,15 @@ const App: React.FC = () => {
                         <div className="flex justify-between items-start mb-3">
                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${categoryClasses[m.category] || 'bg-slate-100 text-slate-600'}`}>{categoryName}</span>
                           {impact?.isEligible ? (
-                            <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">✅ {t.eligible}</span>
+                            <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">
+                              <CheckCircleIcon className="w-3.5 h-3.5" />
+                              {t.eligible}
+                            </span>
                           ) : (
-                            <span className="text-[10px] font-black text-red-400 flex items-center gap-1" title={impact?.ineligibleReason}>⛔ {t.ineligible}</span>
+                            <span className="text-[10px] font-black text-red-400 flex items-center gap-1" title={impact?.ineligibleReason}>
+                              <NoEntryIcon className="w-3.5 h-3.5" />
+                              {t.ineligible}
+                            </span>
                           )}
                         </div>
                         <h4 className="font-black text-sm text-slate-800 mb-1">{measureName}</h4>
@@ -1231,9 +1317,10 @@ const App: React.FC = () => {
                   <button
                     onClick={handleOpenScenarioBuilder}
                     disabled={!isBackendWorkspace || measureLibrary.length === 0}
-                    className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
+                    className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >
-                    + {lang === 'zh' ? '新增' : 'New'}
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    {lang === 'zh' ? '新增' : 'New'}
                   </button>
                 </div>
 
@@ -1251,9 +1338,11 @@ const App: React.FC = () => {
                       </p>
                       <button
                         onClick={() => setScenarioBuilderOpen(false)}
-                        className="text-[10px] font-black text-slate-400 hover:text-white"
+                        className="text-slate-400 hover:text-white transition-colors"
+                        title={lang === 'zh' ? '關閉' : 'Close'}
+                        aria-label={lang === 'zh' ? '關閉' : 'Close'}
                       >
-                        ✕
+                        <XCircleIcon className="w-4 h-4" />
                       </button>
                     </div>
                     <input
@@ -1329,9 +1418,10 @@ const App: React.FC = () => {
                           <button
                             onClick={(e) => { e.stopPropagation(); void handleDeleteScenario(sc.id); }}
                             title={lang === 'zh' ? '刪除' : 'Delete'}
-                            className="w-6 h-6 rounded-full border-2 border-slate-600 text-slate-400 hover:text-red-300 hover:border-red-400 transition-colors text-[10px]"
+                            aria-label={lang === 'zh' ? '刪除方案' : 'Delete scenario'}
+                            className="w-6 h-6 rounded-full border-2 border-slate-600 text-slate-400 hover:text-red-300 hover:border-red-400 transition-colors flex items-center justify-center"
                           >
-                            ✕
+                            <XCircleIcon className="w-3.5 h-3.5" />
                           </button>
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedScenarioId === sc.id ? 'border-blue-400 bg-blue-500' : 'border-slate-600'}`}>
                             {selectedScenarioId === sc.id && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}

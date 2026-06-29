@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.superpowers/
+.claude/
+.DS_Store
+*.log
+[full_path_of_file_1]
+[full_path_of_file_2]
